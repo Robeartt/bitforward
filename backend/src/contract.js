@@ -29,6 +29,7 @@ const {
           functionName,
           functionArgs: [contractPrincipalCV(address)],
           network: this.network,
+          fee: 200n,
         });
         return response;
       } catch (error) {
@@ -49,13 +50,13 @@ const {
           contractName: this.contractName,
           functionName,
           functionArgs: [uintCV(newPrice)],
+          validateWithAbi: true,
           senderKey: CONTRACT_OWNER_KEY,
-          network: this.network,
+          network: 'devnet',
           anchorMode: AnchorMode.ANY,
-          postConditionMode: PostConditionMode.Allow,
         });
   
-        const broadcastResponse = await broadcastTransaction(transaction, this.network);
+        const broadcastResponse = await broadcastTransaction({transaction, network: 'devnet'});
         return broadcastResponse;
       } catch (error) {
         console.error('Error setting price:', error);
