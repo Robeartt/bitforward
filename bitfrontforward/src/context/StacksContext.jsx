@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { AppConfig, UserSession, showConnect } from '@stacks/connect';
 import { StacksTestnet } from '@stacks/network';
 
@@ -10,6 +10,12 @@ export function StacksProvider({ children }) {
   
   const appConfig = new AppConfig(['store_write']);
   const userSession = new UserSession({ appConfig });
+
+  useEffect(() => {
+    if (userSession.isUserSignedIn()) {
+      setStacksUser(userSession.loadUserData());
+    }
+  }, []);
 
   const connectWallet = () => {
     showConnect({
@@ -30,14 +36,6 @@ export function StacksProvider({ children }) {
     userSession.signUserOut();
     setStacksUser(null);
   };
-
-  // Check for existing session on mount
-  useState(() => {
-    if (userSession.isUserSignedIn()) {
-      const userData = userSession.loadUserData();
-      setStacksUser(userData);
-    }
-  }, []);
 
   return (
     <StacksContext.Provider 
