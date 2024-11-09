@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { uintCV } from '@stacks/transactions/dist/clarity';
 import { useStacks } from '../../context/StacksContext';
 import { 
   fetchPositionData, 
@@ -9,11 +10,15 @@ import {
 } from '../../utils/stacksUtils';
 
 export default function Overview() {
-  const { stacksUser } = useStacks();
+  const { stacksUser, stacksNetwork } = useStacks();
   const [positions, setPositions] = useState([]);
   const [currentPrice, setCurrentPrice] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showCreatePosition, setShowCreatePosition] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [closeAt, setCloseAt] = useState('');
+  const [isHoveringCreate, setIsHoveringCreate] = useState(false);
 
   useEffect(() => {
     const loadPositions = async () => {
@@ -24,22 +29,15 @@ export default function Overview() {
 
       try {
         setLoading(true);
-        
-        // Get current price
         const price = await fetchCurrentPrice();
         setCurrentPrice(price);
-
-        // Get positions for connected wallet
         const userPositions = await fetchAllPositions(stacksUser.profile.stxAddress.testnet);
-        
-        // Calculate stats for each position
         const positionsWithStats = await Promise.all(
           userPositions.map(async (pos) => {
             const stats = await calculatePositionStats(pos, price);
             return { ...pos, ...stats };
           })
         );
-
         setPositions(positionsWithStats);
         setLoading(false);
       } catch (err) {
@@ -50,57 +48,53 @@ export default function Overview() {
     };
 
     loadPositions();
-    
-    // Refresh every 30 seconds
     const interval = setInterval(loadPositions, 30000);
     return () => clearInterval(interval);
   }, [stacksUser]);
+
+  const handleCreatePosition = async () => {
+    if (!stacksUser) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      const amountInMicroSTX = Number(amount) * 1000000; // Convert STX to microSTX
+      
+      const options = {
+        contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+        contractName: "bitforward",
+        functionName: "open-position",
+        functionArgs: [
+          uintCV(amountInMicroSTX),
+          uintCV(Number(closeAt))
+        ],
+        network: stacksNetwork,
+        postConditions: [],
+        onFinish: ({ txId }) => {
+          console.log('Transaction:', txId);
+          alert('Position creation initiated! Transaction ID: ' + txId);
+          setShowCreatePosition(false);
+          setAmount('');
+          setCloseAt('');
+        },
+      };
+
+      await openContractCall(options);
+    } catch (error) {
+      console.error('Error creating position:', error);
+      alert('Failed to create position: ' + error.message);
+    }
+  };
 
   if (!stacksUser) {
     return (
       <div className="bg-gray-900 rounded-lg p-6">
         <div className="flex flex-col items-center justify-center py-12">
           <h3 className="text-xl font-semibold mb-4">Welcome to BitForward</h3>
-          <p className="text-gray-400 text-center mb-6">
-            Connect your Stacks wallet to view your positions and start trading
+          <p className="text-gray-400 text-center">
+            Connect your Stacks wallet to view and create positions
           </p>
-          <div className="flex items-center justify-center space-x-2 text-sm text-gray-400">
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-              <span>Network: Testnet</span>
-            </div>
-            <div className="flex items-center ml-4">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-              <span>Current Price: {formatSTX(currentPrice)} STX</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="bg-gray-900 rounded-lg p-6">
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
-          <span className="ml-2 text-gray-400">Loading positions...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-gray-900 rounded-lg p-6">
-        <div className="text-red-500 text-center py-12">
-          <p>{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700"
-          >
-            Retry
-          </button>
         </div>
       </div>
     );
@@ -116,7 +110,67 @@ export default function Overview() {
           </div>
         </div>
 
-        {positions.length > 0 ? (
+        {/* Create Position Button */}
+        <div className="flex justify-center mb-6">
+          <div className="relative">
+            <button
+              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
+              onClick={() => setShowCreatePosition(!showCreatePosition)}
+              onMouseEnter={() => setIsHoveringCreate(true)}
+              onMouseLeave={() => setIsHoveringCreate(false)}
+            >
+              {showCreatePosition ? 'Cancel' : 'Create New Position'}
+            </button>
+            {isHoveringCreate && !showCreatePosition && (
+              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap bg-gray-800 text-gray-200 px-3 py-1 rounded text-sm">
+                Open a long or hedge position
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Create Position Form */}
+        {showCreatePosition && (
+          <div className="mb-6 bg-gray-800 p-6 rounded-lg">
+            <h3 className="text-lg font-semibold mb-4 text-center">Create New Position</h3>
+            <div className="max-w-md mx-auto space-y-4">
+              <div>
+                <label className="block text-gray-400 mb-2">Amount (STX)</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
+                  placeholder="Enter amount in STX"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-2">Close at Block Height</label>
+                <input
+                  type="number"
+                  value={closeAt}
+                  onChange={(e) => setCloseAt(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
+                  placeholder="Enter block height"
+                />
+              </div>
+              <button
+                onClick={handleCreatePosition}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
+              >
+                Create Position
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Positions List */}
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+            <span className="ml-2 text-gray-400">Loading positions...</span>
+          </div>
+        ) : positions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -134,8 +188,8 @@ export default function Overview() {
                   <tr key={index} className="border-t border-gray-800">
                     <td className="py-3">{formatSTX(position.amount)} STX</td>
                     <td className="py-3">
-                      <span className={position.long ? 'text-green-500' : 'text-red-500'}>
-                        {position.long ? 'Long' : 'Short'}
+                      <span className={position.long ? 'text-green-500' : 'text-blue-500'}>
+                        {position.long ? 'Long' : 'Hedge'}
                       </span>
                     </td>
                     <td className="py-3">{formatSTX(position.openPrice)} STX</td>
@@ -159,7 +213,7 @@ export default function Overview() {
           <div className="text-center py-8 bg-gray-800 rounded-lg">
             <p className="text-gray-400">No positions found</p>
             <p className="text-gray-500 text-sm mt-2">
-              Open a new position to start trading
+              Create a new position to start trading
             </p>
           </div>
         )}

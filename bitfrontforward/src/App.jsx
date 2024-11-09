@@ -9,7 +9,7 @@ function App() {
       <div className="min-h-screen bg-black text-white">
         <nav className="bg-gray-900 shadow-lg p-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-xl font-bold">BitForward</h1>
+            <h1 className="text-x1 font-bold">BitForward</h1>
             <WalletConnect />
           </div>
         </nav>
