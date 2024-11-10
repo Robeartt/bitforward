@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { uintCV } from '@stacks/transactions/dist/clarity';
+import { boolCV, uintCV } from '@stacks/transactions/dist/clarity';
 import { makeStandardSTXPostCondition, FungibleConditionCode } from '@stacks/transactions';
 import { openContractCall } from '@stacks/connect';
 import PriceSetter from './PriceSetter';
@@ -103,7 +103,8 @@ export default function Overview() {
         functionName: "open-position",
         functionArgs: [
           uintCV(amountInMicroSTX),
-          uintCV(Number(closeAt))
+          uintCV(Number(closeAt)),
+          boolCV(true)
         ],
         network: stacksNetwork,
         postConditions,
@@ -117,8 +118,30 @@ export default function Overview() {
             setCloseAt('');
             
             alert(`Position creation initiated! Transaction ID: ${txId}`);
+
             
             // Refresh positions
+          
+            try {
+              const response = await fetch('http://localhost:3000/api/position/new', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ address: stacksUser.profile.stxAddress.devnet }),
+              });
+          
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+              }
+          
+              const data = await response.json();
+              return data;
+            } catch (error) {
+              console.error('Error fetching new position:', error);
+              throw error;
+            }
             await loadPositions();
           } catch (error) {
             console.error('Error refreshing positions:', error);
