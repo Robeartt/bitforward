@@ -3,6 +3,7 @@ import { StacksProvider } from "./context/StacksContext";
 import Overview from "./components/StacksComponents/Overview";
 import WalletConnect from "./components/StacksComponents/WalletConnect";
 import Positions from "./components/StacksComponents/Positions";
+import PositionManagement from "./components/StacksComponents/PositionManagement";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <main className="container mx-auto py-8 px-4">
           <div className="grid grid-cols-1 gap-6">
             <Overview />
+            <PositionManagement />
             <Positions />
           </div>
         </main>
