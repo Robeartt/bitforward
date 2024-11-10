@@ -23,40 +23,42 @@ export default function Overview() {
   const [amount, setAmount] = useState('');
   const [closeAt, setCloseAt] = useState('');
   const [isHoveringCreate, setIsHoveringCreate] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [transactionId, setTransactionId] = useState(null);
+
+  const loadPositions = async () => {
+    if (!stacksUser) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch current price first
+      const price = await fetchCurrentPrice();
+      setCurrentPrice(price);
+
+      // Fetch positions
+      const userPositions = await fetchAllPositions(stacksUser.profile.stxAddress.testnet);
+      const positionsWithStats = await Promise.all(
+        userPositions.map(async (pos) => {
+          const stats = await calculatePositionStats(pos, price);
+          return { ...pos, ...stats };
+        })
+      );
+
+      setPositions(positionsWithStats);
+    } catch (err) {
+      console.error('Error loading positions:', err);
+      setError('Failed to load positions');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadPositions = async () => {
-      if (!stacksUser) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const price = await fetchCurrentPrice();
-        setCurrentPrice(price);
-        const userPositions = await fetchAllPositions(stacksUser.profile.stxAddress.testnet);
-        const allPositions = await positionService.getAllPositions(
-          stacksUser.profile.stxAddress.testnet
-        );
-        const positionsWithStats = await Promise.all(
-          userPositions.map(async (pos) => {
-            const stats = await calculatePositionStats(pos, price);
-            return { ...pos, ...stats };
-          })
-        );
-
-
-
-        setPositions(positionsWithStats);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error loading positions:', err);
-        setError('Failed to load positions');
-        setLoading(false);
-      }
-    };
-
     loadPositions();
     const interval = setInterval(loadPositions, 30000);
     return () => clearInterval(interval);
@@ -68,14 +70,30 @@ export default function Overview() {
       return;
     }
 
+    if (!amount || !closeAt) {
+      alert('Please fill in all fields');
+      return;
+    }
+
     try {
-      const amountInMicroSTX = Number(amount) * 1000000; // Convert STX to microSTX
+      setIsSubmitting(true);
+      setError(null);
+
+      const amountInMicroSTX = Number(amount) * 1000000;
       
+      if (amountInMicroSTX <= 0) {
+        throw new Error('Amount must be greater than 0');
+      }
+
+      if (Number(closeAt) <= 0) {
+        throw new Error('Invalid closing block height');
+      }
+
       const postConditions = [
         makeStandardSTXPostCondition(
           stacksUser.profile.stxAddress.testnet,
           FungibleConditionCode.Greater,
-          0
+          amountInMicroSTX
         )
       ];
 
@@ -89,20 +107,35 @@ export default function Overview() {
         ],
         network: stacksNetwork,
         postConditions,
-        onFinish: ({ txId }) => {
-          //call api
+        onFinish: async ({ txId }) => {
           console.log('Transaction:', txId);
-          alert('Position creation initiated! Transaction ID: ' + txId);
-          setShowCreatePosition(false);
-          setAmount('');
-          setCloseAt('');
+          setTransactionId(txId);
+          
+          try {
+            setShowCreatePosition(false);
+            setAmount('');
+            setCloseAt('');
+            
+            alert(`Position creation initiated! Transaction ID: ${txId}`);
+            
+            // Refresh positions
+            await loadPositions();
+          } catch (error) {
+            console.error('Error refreshing positions:', error);
+          }
         },
+        onCancel: () => {
+          console.log('Transaction canceled by user');
+          setIsSubmitting(false);
+        }
       };
 
       await openContractCall(options);
     } catch (error) {
       console.error('Error creating position:', error);
       alert('Failed to create position: ' + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -129,7 +162,6 @@ export default function Overview() {
           </div>
         </div>
 
-        {/* Create Position Button */}
         <div className="flex justify-center mb-6">
           <div className="relative">
             <button
@@ -137,6 +169,7 @@ export default function Overview() {
               onClick={() => setShowCreatePosition(!showCreatePosition)}
               onMouseEnter={() => setIsHoveringCreate(true)}
               onMouseLeave={() => setIsHoveringCreate(false)}
+              disabled={isSubmitting}
             >
               {showCreatePosition ? 'Cancel' : 'Create New Position'}
             </button>
@@ -148,7 +181,6 @@ export default function Overview() {
           </div>
         </div>
 
-        {/* Create Position Form */}
         {showCreatePosition && (
           <div className="mb-6 bg-gray-800 p-6 rounded-lg">
             <h3 className="text-lg font-semibold mb-4 text-center">Create New Position</h3>
@@ -161,6 +193,7 @@ export default function Overview() {
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
                   placeholder="Enter amount in STX"
+                  disabled={isSubmitting}
                 />
               </div>
               <div>
@@ -171,23 +204,45 @@ export default function Overview() {
                   onChange={(e) => setCloseAt(e.target.value)}
                   className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
                   placeholder="Enter block height"
+                  disabled={isSubmitting}
                 />
               </div>
               <button
                 onClick={handleCreatePosition}
-                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
+                disabled={isSubmitting || !amount || !closeAt}
+                className={`w-full ${
+                  isSubmitting || !amount || !closeAt
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                } text-white px-4 py-2 rounded transition-colors flex items-center justify-center`}
               >
-                Create Position
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  'Create Position'
+                )}
               </button>
             </div>
           </div>
         )}
 
-        {/* Positions List */}
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
             <span className="ml-2 text-gray-400">Loading positions...</span>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 bg-gray-800 rounded-lg">
+            <p className="text-red-500">{error}</p>
+            <button
+              onClick={loadPositions}
+              className="mt-4 text-indigo-500 hover:text-indigo-400"
+            >
+              Try Again
+            </button>
           </div>
         ) : positions.length > 0 ? (
           <div className="overflow-x-auto">
@@ -238,7 +293,6 @@ export default function Overview() {
         )}
       </div>
 
-      {/* Price Setter in bottom right corner */}
       <div className="absolute bottom-6 right-6">
         <PriceSetter 
           currentPrice={currentPrice}
@@ -248,5 +302,5 @@ export default function Overview() {
         />
       </div>
     </div>
-);
+  );
 }
