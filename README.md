@@ -1,5 +1,3 @@
-Here's the README written in HTML markdown format:
-
 <h1>BitForward</h1>
 
 <p>BitForward is a decentralized trading platform built on the Stacks blockchain that enables users to create and manage forward contracts using STX tokens. The platform features a modern UI for position management, real-time price updates, and automated position settlement.</p>
