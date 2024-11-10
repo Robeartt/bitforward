@@ -193,7 +193,7 @@ export default function Overview() {
               {/* Amount and Block Height */}
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-gray-400 mb-2 text-lg">Amount (STX)</label>
+                  <label className="block text-gray-400 mb-2 text-lg">Amount</label>
                   <input
                     type="number"
                     value={amount}
@@ -202,20 +202,20 @@ export default function Overview() {
                     placeholder="Enter amount"
                     disabled={isSubmitting}
                   />
-                  <p className="text-gray-500 text-sm mt-1">Position size in STX</p>
+                  <p className="text-gray-500 text-sm mt-1">Position size</p>
                 </div>
 
                 <div>
-                  <label className="block text-gray-400 mb-2 text-lg">Close at Block Height</label>
+                  <label className="block text-gray-400 mb-2 text-lg">Close after blocks</label>
                   <input
                     type="number"
                     value={closeAt}
                     onChange={(e) => setCloseAt(e.target.value)}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white text-lg"
-                    placeholder="Enter block height"
+                    placeholder="Enter duration in blocks"
                     disabled={isSubmitting}
                   />
-                  <p className="text-gray-500 text-sm mt-1">Position will auto-close at this block</p>
+                  <p className="text-gray-500 text-sm mt-1">Position will auto-close after this amount of blocks</p>
                 </div>
               </div>
 
