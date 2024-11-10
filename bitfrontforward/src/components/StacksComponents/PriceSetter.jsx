@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { useStacks } from '../../context/StacksContext';
 import { openContractCall } from '@stacks/connect';
 import { uintCV } from '@stacks/transactions';
+import { positionService } from '../../services/positionService';
 
-export default function PriceSetter() {
+export default function PriceSetter({ onPriceSet }) {
   const { stacksUser, stacksNetwork } = useStacks();
   const [price, setPrice] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Contract owner address should match the one that deployed the contract
+  // Contract constants
   const CONTRACT_ADDRESS = 'ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5';
   const CONTRACT_NAME = 'bitforward';
-  const CONTRACT_OWNER = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM'; // Set this to your contract owner address
+  const CONTRACT_OWNER = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
 
   const handleSetPrice = async () => {
     if (!stacksUser) {
@@ -19,21 +21,22 @@ export default function PriceSetter() {
       return;
     }
 
-    // Check if the connected user is the contract owner
     if (stacksUser.profile.stxAddress.testnet !== CONTRACT_OWNER) {
       alert('Only contract owner can set price');
       return;
     }
 
-    // Validate price is greater than 0 (matching err-no-value check)
     if (Number(price) <= 0) {
       alert('Price must be greater than 0');
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
-      const priceInMicroSTX = Number(price) * 1000000; // Convert STX to microSTX
+      const priceInMicroSTX = Number(price) * 1000000;
       
+      // Set up Stacks contract call
       const options = {
         contractAddress: CONTRACT_ADDRESS,
         contractName: CONTRACT_NAME,
@@ -42,11 +45,25 @@ export default function PriceSetter() {
           uintCV(priceInMicroSTX)
         ],
         network: stacksNetwork,
-        onFinish: ({ txId }) => {
-          console.log('Price set transaction:', txId);
-          alert('Price update initiated! Transaction ID: ' + txId);
-          setPrice('');
-          setIsOpen(false);
+        onFinish: async ({ txId }) => {
+          console.log('Stacks transaction:', txId);
+          
+          try {
+            // Update price in backend
+            await positionService.setPrice(priceInMicroSTX);
+            
+            // Notify parent component of price update
+            if (onPriceSet) {
+              onPriceSet(priceInMicroSTX);
+            }
+
+            alert('Price updated successfully in both systems!');
+            setPrice('');
+            setIsOpen(false);
+          } catch (backendError) {
+            console.error('Backend update failed:', backendError);
+            alert('Warning: Price updated on blockchain but backend sync failed. Please try again or contact support.');
+          }
         },
       };
 
@@ -60,6 +77,8 @@ export default function PriceSetter() {
       } else {
         alert('Failed to set price: ' + error.message);
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,6 +96,7 @@ export default function PriceSetter() {
             <button 
               onClick={() => setIsOpen(false)}
               className="text-gray-400 hover:text-white"
+              disabled={isSubmitting}
             >
               ✕
             </button>
@@ -94,18 +114,26 @@ export default function PriceSetter() {
                 step="0.000001"
                 className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                 placeholder="Enter price in STX"
+                disabled={isSubmitting}
               />
             </div>
             <button
               onClick={handleSetPrice}
-              disabled={!price || Number(price) <= 0}
+              disabled={!price || Number(price) <= 0 || isSubmitting}
               className={`w-full px-4 py-2 rounded ${
-                price && Number(price) > 0
+                price && Number(price) > 0 && !isSubmitting
                   ? 'bg-green-600 hover:bg-green-700 text-white' 
                   : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-              }`}
+              } flex items-center justify-center`}
             >
-              Set Price
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                'Set Price'
+              )}
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
@@ -117,6 +145,7 @@ export default function PriceSetter() {
           onClick={() => setIsOpen(true)}
           className="bg-green-600 hover:bg-green-700 text-white rounded-full p-3 shadow-lg flex items-center space-x-2"
           title="Set Price (Admin Only)"
+          disabled={isSubmitting}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 

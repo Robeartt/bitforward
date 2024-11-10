@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { uintCV } from '@stacks/transactions/dist/clarity';
+import { makeStandardSTXPostCondition, FungibleConditionCode } from '@stacks/transactions';
+import { openContractCall } from '@stacks/connect';
 import PriceSetter from './PriceSetter';
 import { useStacks } from '../../context/StacksContext';
+import { positionService } from '../../services/positionService';
 import { 
   fetchPositionData, 
   fetchCurrentPrice, 
@@ -33,12 +36,18 @@ export default function Overview() {
         const price = await fetchCurrentPrice();
         setCurrentPrice(price);
         const userPositions = await fetchAllPositions(stacksUser.profile.stxAddress.testnet);
+        const allPositions = await positionService.getAllPositions(
+          stacksUser.profile.stxAddress.testnet
+        );
         const positionsWithStats = await Promise.all(
           userPositions.map(async (pos) => {
             const stats = await calculatePositionStats(pos, price);
             return { ...pos, ...stats };
           })
         );
+
+
+
         setPositions(positionsWithStats);
         setLoading(false);
       } catch (err) {
@@ -62,6 +71,14 @@ export default function Overview() {
     try {
       const amountInMicroSTX = Number(amount) * 1000000; // Convert STX to microSTX
       
+      const postConditions = [
+        makeStandardSTXPostCondition(
+          stacksUser.profile.stxAddress.testnet,
+          FungibleConditionCode.Greater,
+          0
+        )
+      ];
+
       const options = {
         contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
         contractName: "bitforward",
@@ -71,8 +88,9 @@ export default function Overview() {
           uintCV(Number(closeAt))
         ],
         network: stacksNetwork,
-        postConditions: [],
+        postConditions,
         onFinish: ({ txId }) => {
+          //call api
           console.log('Transaction:', txId);
           alert('Position creation initiated! Transaction ID: ' + txId);
           setShowCreatePosition(false);
