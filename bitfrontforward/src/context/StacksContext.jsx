@@ -1,12 +1,12 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { AppConfig, UserSession, showConnect } from '@stacks/connect';
-import { StacksTestnet } from '@stacks/network';
+import { StacksDevnet } from '@stacks/network';
 
 const StacksContext = createContext();
 
 export function StacksProvider({ children }) {
   const [stacksUser, setStacksUser] = useState(null);
-  const stacksNetwork = new StacksTestnet();
+  const stacksNetwork = new StacksDevnet();
   
   const appConfig = new AppConfig(['store_write']);
   const userSession = new UserSession({ appConfig });

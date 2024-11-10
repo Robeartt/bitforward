@@ -54,7 +54,7 @@
 
 (define-public (open-position (amount uint) (close-at uint))
     (begin
-        (asserts! (> close-at stacks-block-height) err-close-in-past)
+        (asserts! (> close-at u0) err-close-in-past)
         (asserts! (> amount u0) err-no-value)
         (asserts! (> (var-get current-price) u0) err-price-not-set)
         (asserts! (is-none (get-position tx-sender)) err-already-has-position)
@@ -66,7 +66,7 @@
             premium: u0,
             open_value: (* amount (var-get current-price)),
             open_block: stacks-block-height,
-            closing_block: close-at,
+            closing_block: (+ stacks-block-height close-at),
             matched: none,
         })
         (ok "position opened")
