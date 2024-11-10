@@ -1,15 +1,13 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { AppConfig, UserSession, showConnect } from '@stacks/connect';
-import { StacksTestnet } from '@stacks/network';
+import { StacksDevnet } from '@stacks/network';
 
 const StacksContext = createContext();
 
 export function StacksProvider({ children }) {
   const [stacksUser, setStacksUser] = useState(null);
   // Change to StacksTestnet
-  const stacksNetwork = new StacksTestnet({
-    url: 'https://stacks-node-api.testnet.stacks.co'
-  });
+  const stacksNetwork = new StacksDevnet();
   
   // Include store_write permission for contract interactions
   const appConfig = new AppConfig(['store_write']);
@@ -49,7 +47,7 @@ export function StacksProvider({ children }) {
   useEffect(() => {
     const checkNetwork = async () => {
       try {
-        const response = await fetch('https://stacks-node-api.testnet.stacks.co/v2/info');
+        const response = await fetch('http://localhost:3999/v2/info');
         const data = await response.json();
         console.log('Connected to Stacks Testnet:', data.network_id);
       } catch (error) {

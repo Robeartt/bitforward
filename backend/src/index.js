@@ -1,10 +1,13 @@
 import express from 'express';
+import cors from 'cors';
 import { BitForwardContract } from './contract.js';
 import { storage } from './storage.js';
 import { PositionMonitor } from './monitor.js';
 import { createRoutes } from './routes.js';
 
 const app = express();
+
+app.use(cors());
 app.use(express.json());
 
 const bitForward = new BitForwardContract();

@@ -1,8 +1,5 @@
 import { useState } from 'react';
 import { useStacks } from '../../context/StacksContext';
-import { openContractCall } from '@stacks/connect';
-import { uintCV } from '@stacks/transactions';
-import { positionService } from '../../services/positionService';
 
 export default function PriceSetter({ onPriceSet }) {
   const { stacksUser, stacksNetwork } = useStacks();
@@ -10,21 +7,7 @@ export default function PriceSetter({ onPriceSet }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Contract constants
-  const CONTRACT_ADDRESS = 'ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5';
-  const CONTRACT_NAME = 'bitforward';
-  const CONTRACT_OWNER = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
-
   const handleSetPrice = async () => {
-    if (!stacksUser) {
-        alert('Please connect your wallet first');
-        return;
-    }
-
-    if (stacksUser.profile.stxAddress.testnet !== CONTRACT_OWNER) {
-        alert('Only contract owner can set price');
-        return;
-    }
 
     if (Number(price) <= 0) {
         alert('Price must be greater than 0');
@@ -33,65 +16,33 @@ export default function PriceSetter({ onPriceSet }) {
 
     setIsSubmitting(true);
 
+    const priceInMicroSTX = Number(price) * 1000000;
+        
+    // Call the backend API first
     try {
-        const priceInMicroSTX = Number(price) * 1000000;
-        
-        // Call the backend API first
-        try {
-            await fetch('/price', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ price: priceInMicroSTX })
-            });
-        } catch (backendError) {
-            console.error('Backend update failed:', backendError);
-            alert('Failed to update price in backend. Please try again.');
-            setIsSubmitting(false);
-            return;
-        }
-        
-        // If backend succeeds, proceed with blockchain update
-        const options = {
-            contractAddress: CONTRACT_ADDRESS,
-            contractName: CONTRACT_NAME,
-            functionName: "set-price",
-            functionArgs: [
-                uintCV(priceInMicroSTX)
-            ],
-            network: stacksNetwork,
-            onFinish: async ({ txId }) => {
-                console.log('Stacks transaction:', txId);
-                
-                // Notify parent component of price update
-                if (onPriceSet) {
-                    onPriceSet(priceInMicroSTX);
-                }
-
-                alert('Price updated successfully in both systems!');
-                setPrice('');
-                setIsOpen(false);
-            },
-        };
-
-        await openContractCall(options);
-    } catch (error) {
-        console.error('Error setting price:', error);
-        if (error.message.includes('err-owner-only')) {
-            alert('Only contract owner can set price');
-        } else if (error.message.includes('err-no-value')) {
-            alert('Price must be greater than 0');
-        } else {
-            alert('Failed to set price: ' + error.message);
-        }
-    } finally {
-        setIsSubmitting(false);
-    }
+      const response = await fetch('http://localhost:3001/api/price', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ price: priceInMicroSTX })
+      });
+      
+      if (!response.ok) {
+          console.log(response);
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update price');
+      }
+  } catch (error) {
+      console.error('Backend update failed:', error);
+      //alert('Failed to update price in backend. Please try again.');
+  } finally {
+      setIsSubmitting(false);
+  }
 };
 
   // If user is not contract owner, don't show the price setter
-  if (!stacksUser || stacksUser.profile.stxAddress.testnet !== CONTRACT_OWNER) {
+  if (!stacksUser) {
     return null;
   }
 
