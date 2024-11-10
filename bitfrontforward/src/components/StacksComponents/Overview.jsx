@@ -22,6 +22,7 @@ export default function Overview() {
   const [showCreatePosition, setShowCreatePosition] = useState(false);
   const [amount, setAmount] = useState('');
   const [closeAt, setCloseAt] = useState('');
+  const [positionType, setPositionType] = useState('long');
   const [isHoveringCreate, setIsHoveringCreate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [transactionId, setTransactionId] = useState(null);
@@ -104,7 +105,7 @@ export default function Overview() {
         functionArgs: [
           uintCV(amountInMicroSTX),
           uintCV(Number(closeAt)),
-          boolCV(true)
+          boolCV(positionType === 'long') // Using positionType here
         ],
         network: stacksNetwork,
         postConditions,
@@ -116,6 +117,7 @@ export default function Overview() {
             setShowCreatePosition(false);
             setAmount('');
             setCloseAt('');
+            setPositionType('long'); // Reset position type
           
             try {
               const response = await fetch('http://localhost:3001/api/position/new', {
@@ -226,6 +228,36 @@ export default function Overview() {
                   disabled={isSubmitting}
                 />
               </div>
+              
+              {/* Position Type Selection */}
+              <div>
+                <label className="block text-gray-400 mb-2">Position Type</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="long"
+                      checked={positionType === 'long'}
+                      onChange={(e) => setPositionType(e.target.value)}
+                      className="form-radio text-green-500"
+                      disabled={isSubmitting}
+                    />
+                    <span className="text-white">Long</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="hedge"
+                      checked={positionType === 'hedge'}
+                      onChange={(e) => setPositionType(e.target.value)}
+                      className="form-radio text-blue-500"
+                      disabled={isSubmitting}
+                    />
+                    <span className="text-white">Hedge</span>
+                  </label>
+                </div>
+              </div>
+
               <button
                 onClick={handleCreatePosition}
                 disabled={isSubmitting || !amount || !closeAt}
