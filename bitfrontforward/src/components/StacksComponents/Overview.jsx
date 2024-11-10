@@ -174,90 +174,103 @@ export default function Overview() {
   }
 
   return (
-    <div className="bg-gray-900 rounded-lg p-6 relative">
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-bold">Your Positions</h2>
-          <div className="text-gray-400">
-            Current Price: {formatSTX(currentPrice)} STX
-          </div>
-        </div>
-
-        <div className="flex justify-center mb-6">
-          <div className="relative">
-            <button
-              className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
-              onClick={() => setShowCreatePosition(!showCreatePosition)}
-              onMouseEnter={() => setIsHoveringCreate(true)}
-              onMouseLeave={() => setIsHoveringCreate(false)}
-              disabled={isSubmitting}
+    <div className="space-y-6">
+      {/* Create New Position Section */}
+      <div className="bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+        <button
+          onClick={() => setShowCreatePosition(!showCreatePosition)}
+          className="w-full px-6 py-4 flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors"
+        >
+          <div className="flex items-center space-x-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-6 w-6 transform transition-transform ${showCreatePosition ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              {showCreatePosition ? 'Cancel' : 'Create New Position'}
-            </button>
-            {isHoveringCreate && !showCreatePosition && (
-              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap bg-gray-800 text-gray-200 px-3 py-1 rounded text-sm">
-                Open a long or hedge position
-              </div>
-            )}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+            <h2 className="text-lg font-bold">Create New Position</h2>
           </div>
-        </div>
+          <div className="text-sm text-gray-400">
+            {showCreatePosition ? 'Click to collapse' : 'Click to expand'}
+          </div>
+        </button>
 
         {showCreatePosition && (
-          <div className="mb-6 bg-gray-800 p-6 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4 text-center">Create New Position</h3>
-            <div className="max-w-md mx-auto space-y-4">
-              <div>
-                <label className="block text-gray-400 mb-2">Amount (STX)</label>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
-                  placeholder="Enter amount in STX"
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label className="block text-gray-400 mb-2">Close at Block Height</label>
-                <input
-                  type="number"
-                  value={closeAt}
-                  onChange={(e) => setCloseAt(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
-                  placeholder="Enter block height"
-                  disabled={isSubmitting}
-                />
-              </div>
-              
+          <div className="p-6 bg-gray-900">
+            <div className="max-w-2xl mx-auto">
               {/* Position Type Selection */}
-              <div>
-                <label className="block text-gray-400 mb-2">Position Type</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center space-x-2 cursor-pointer">
+              <div className="mb-8">
+                <label className="block text-gray-400 mb-3 text-lg">Position Type</label>
+                <div className="flex gap-8 justify-center">
+                  <label className="flex items-center space-x-3 cursor-pointer bg-gray-800 p-4 rounded-lg hover:bg-gray-700 transition-colors">
                     <input
                       type="radio"
                       value="long"
                       checked={positionType === 'long'}
                       onChange={(e) => setPositionType(e.target.value)}
-                      className="form-radio text-green-500"
+                      className="form-radio h-5 w-5 text-green-500"
                       disabled={isSubmitting}
                     />
-                    <span className="text-white">Long</span>
+                    <div>
+                      <span className="text-white text-lg ml-2">Long</span>
+                      <p className="text-gray-400 text-sm mt-1">Profit from price increases</p>
+                    </div>
                   </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
+                  <label className="flex items-center space-x-3 cursor-pointer bg-gray-800 p-4 rounded-lg hover:bg-gray-700 transition-colors">
                     <input
                       type="radio"
                       value="hedge"
                       checked={positionType === 'hedge'}
                       onChange={(e) => setPositionType(e.target.value)}
-                      className="form-radio text-blue-500"
+                      className="form-radio h-5 w-5 text-blue-500"
                       disabled={isSubmitting}
                     />
-                    <span className="text-white">Hedge</span>
+                    <div>
+                      <span className="text-white text-lg ml-2">Hedge</span>
+                      <p className="text-gray-400 text-sm mt-1">Protect against price decreases</p>
+                    </div>
                   </label>
                 </div>
               </div>
 
+              {/* Amount and Block Height */}
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-gray-400 mb-2 text-lg">Amount (STX)</label>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white text-lg"
+                    placeholder="Enter amount"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">Position size in STX</p>
+                </div>
+
+                <div>
+                  <label className="block text-gray-400 mb-2 text-lg">Close at Block Height</label>
+                  <input
+                    type="number"
+                    value={closeAt}
+                    onChange={(e) => setCloseAt(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white text-lg"
+                    placeholder="Enter block height"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">Position will auto-close at this block</p>
+                </div>
+              </div>
+
+              {/* Create Button */}
               <button
                 onClick={handleCreatePosition}
                 disabled={isSubmitting || !amount || !closeAt}
@@ -265,7 +278,7 @@ export default function Overview() {
                   isSubmitting || !amount || !closeAt
                     ? 'bg-gray-600 cursor-not-allowed'
                     : 'bg-green-600 hover:bg-green-700'
-                } text-white px-4 py-2 rounded transition-colors flex items-center justify-center`}
+                } text-white px-6 py-4 rounded-lg transition-colors flex items-center justify-center text-lg font-medium`}
               >
                 {isSubmitting ? (
                   <>
@@ -279,78 +292,90 @@ export default function Overview() {
             </div>
           </div>
         )}
-
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
-            <span className="ml-2 text-gray-400">Loading positions...</span>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8 bg-gray-800 rounded-lg">
-            <p className="text-red-500">{error}</p>
-            <button
-              onClick={loadPositions}
-              className="mt-4 text-indigo-500 hover:text-indigo-400"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : positions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-gray-500 text-left">
-                  <th className="pb-2">Amount</th>
-                  <th className="pb-2">Type</th>
-                  <th className="pb-2">Entry Price</th>
-                  <th className="pb-2">Current Price</th>
-                  <th className="pb-2">P/L</th>
-                  <th className="pb-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {positions.map((position, index) => (
-                  <tr key={index} className="border-t border-gray-800">
-                    <td className="py-3">{formatSTX(position.amount)} STX</td>
-                    <td className="py-3">
-                      <span className={position.long ? 'text-green-500' : 'text-blue-500'}>
-                        {position.long ? 'Long' : 'Hedge'}
-                      </span>
-                    </td>
-                    <td className="py-3">{formatSTX(position.openPrice)} STX</td>
-                    <td className="py-3">{formatSTX(currentPrice)} STX</td>
-                    <td className={`py-3 ${position.gainsPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {position.gainsPercentage.toFixed(2)}%
-                    </td>
-                    <td className="py-3">
-                      {position.isActive ? (
-                        <span className="text-green-500">Active</span>
-                      ) : (
-                        <span className="text-gray-500">Settled</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-gray-800 rounded-lg">
-            <p className="text-gray-400">No positions found</p>
-            <p className="text-gray-500 text-sm mt-2">
-              Create a new position to start trading
-            </p>
-          </div>
-        )}
       </div>
 
-      <div className="absolute bottom-6 right-6">
-        <PriceSetter 
-          currentPrice={currentPrice}
-          onPriceSet={(newPrice) => {
-            setCurrentPrice(newPrice);
-          }}
-        />
+      {/* Your Positions Section */}
+      <div className="bg-gray-900 rounded-lg p-6 relative">
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold">Your Positions</h2>
+            <div className="text-gray-400">
+              Current Price: {formatSTX(currentPrice)} STX
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+              <span className="ml-2 text-gray-400">Loading positions...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 bg-gray-800 rounded-lg">
+              <p className="text-red-500">{error}</p>
+              <button
+                onClick={loadPositions}
+                className="mt-4 text-indigo-500 hover:text-indigo-400"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : positions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-gray-500 text-left">
+                    <th className="pb-2">Amount</th>
+                    <th className="pb-2">Type</th>
+                    <th className="pb-2">Entry Price</th>
+                    <th className="pb-2">Current Price</th>
+                    <th className="pb-2">P/L</th>
+                    <th className="pb-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {positions.map((position, index) => (
+                    <tr key={index} className="border-t border-gray-800">
+                      <td className="py-3">{formatSTX(position.amount)} STX</td>
+                      <td className="py-3">
+                        <span className={position.long ? 'text-green-500' : 'text-blue-500'}>
+                          {position.long ? 'Long' : 'Hedge'}
+                        </span>
+                      </td>
+                      <td className="py-3">{formatSTX(position.openPrice)} STX</td>
+                      <td className="py-3">{formatSTX(currentPrice)} STX</td>
+                      <td className={`py-3 ${position.gainsPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {position.gainsPercentage.toFixed(2)}%
+                      </td>
+                      <td className="py-3">
+                        {position.isActive ? (
+                          <span className="text-green-500">Active</span>
+                        ) : (
+                          <span className="text-gray-500">Settled</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 bg-gray-800 rounded-lg">
+              <p className="text-gray-400">No positions found</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Create a new position to start trading
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="absolute bottom-6 right-6">
+          <PriceSetter 
+            currentPrice={currentPrice}
+            onPriceSet={(newPrice) => {
+              setCurrentPrice(newPrice);
+            }}
+          />
+        </div>
       </div>
     </div>
   );
