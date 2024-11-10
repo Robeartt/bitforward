@@ -1,6 +1,6 @@
 <h1><span style="color: #22c55e;">Bit</span>Forward</h1>
 
-<p>BitForward is a decentralized trading platform built on the Stacks blockchain that enables users to create and manage forward contracts using STX tokens. The platform features a modern UI for position management, real-time price updates, and automated position settlement.</p>
+<p>BitForward is a decentralized trading platform built on the Stacks blockchain that enables users to create and manage forward contracts using STX (With the aim to use sBTC in the future) tokens. The platform features a modern UI for position management, real-time price updates, and automated position settlement.</p>
 
 <h2>Features</h2>
 
@@ -17,7 +17,7 @@
 <h2>Prerequisites</h2>
 
 <ul>
-  <li>Node.js (v14 or higher)</li>
+  <li>Node.js (v20 or higher)</li>
   <li>npm or yarn</li>
   <li>A Stacks wallet (Hiro Wallet recommended)</li>
   <li>Access to Stacks testnet/devnet</li>
@@ -104,7 +104,7 @@ PORT=3000</code></pre>
   <li>Start the backend server:</li>
 </ol>
 
-<pre><code>npm run server</code></pre>
+<pre><code>npm run dev</code></pre>
 
 <ol start="2">
   <li>Start the frontend development server:</li>
