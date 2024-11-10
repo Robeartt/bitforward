@@ -66,7 +66,7 @@ export function createRoutes(storage, contract) {
             if (!price) {
                 return res.status(400).json({ error: "Price is required" });
             }
-            const result = await contract.setPrice(price);
+            const result = await contract.setPrice(price * 1000000);
             res.json({ txId: result });
         } catch (error) {
             console.error("Error:", error);
