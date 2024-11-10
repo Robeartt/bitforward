@@ -8,5 +8,4 @@ STACKS_DEVNET.url = 'http://localhost:3999';
 export const NETWORK = process.env.NETWORK === 'devnet' ? STACKS_DEVNET : STACKS_TESTNET
 export const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 export const CONTRACT_NAME = 'bitforward';
-// Private key for contract owner (only needed for set-price)
 export const CONTRACT_OWNER_KEY = process.env.CONTRACT_OWNER_KEY;
