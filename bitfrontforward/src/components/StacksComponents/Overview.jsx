@@ -93,7 +93,7 @@ export default function Overview() {
         makeStandardSTXPostCondition(
           stacksUser.profile.stxAddress.testnet,
           FungibleConditionCode.Greater,
-          amountInMicroSTX
+          0
         )
       ];
 
@@ -116,20 +116,17 @@ export default function Overview() {
             setShowCreatePosition(false);
             setAmount('');
             setCloseAt('');
-            
-            alert(`Position creation initiated! Transaction ID: ${txId}`);
-
-            
-            // Refresh positions
           
             try {
-              const response = await fetch('http://localhost:3000/api/position/new', {
+              const response = await fetch('http://localhost:3001/api/position/new', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ address: stacksUser.profile.stxAddress.devnet }),
+                body: JSON.stringify({ address: stacksUser.profile.stxAddress.testnet }),
               });
+
+              console.log('send!')
           
               if (!response.ok) {
                 const errorData = await response.json();
@@ -142,7 +139,6 @@ export default function Overview() {
               console.error('Error fetching new position:', error);
               throw error;
             }
-            await loadPositions();
           } catch (error) {
             console.error('Error refreshing positions:', error);
           }

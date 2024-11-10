@@ -1,4 +1,4 @@
-import { StacksTestnet } from '@stacks/network';
+import { StacksDevnet, StacksTestnet } from '@stacks/network';
 import { callReadOnlyFunction, cvToJSON } from '@stacks/transactions';
 import { principalCV, contractPrincipalCV } from '@stacks/transactions';
 
@@ -7,17 +7,18 @@ const CONTRACT_NAME = 'bitforward';
 
 export const fetchPositionData = async (address) => {
   try {
-    const network = new StacksTestnet();
-    
     // Read position data from contract
     const positionResponse = await callReadOnlyFunction({
       contractAddress: CONTRACT_ADDRESS,
       contractName: CONTRACT_NAME,
       functionName: 'get-position',
       functionArgs: [principalCV(address)],
-      network,
+      validateWithAbi: true,
+      network: "devnet",
+      senderAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
     });
 
+    console.log(positionResponse);
     const position = cvToJSON(positionResponse);
 
     // If no position exists, return null
@@ -43,16 +44,15 @@ export const fetchPositionData = async (address) => {
 };
 
 export const fetchCurrentPrice = async () => {
-  try {
-    const network = new StacksTestnet();
-    
-    // Read current price from contract
+  try {    
     const priceResponse = await callReadOnlyFunction({
       contractAddress: CONTRACT_ADDRESS,
       contractName: CONTRACT_NAME,
-      functionName: 'get-current-price',
+      functionName: 'get-price',
       functionArgs: [],
-      network,
+      validateWithAbi: true,
+      network: "devnet",
+      senderAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
     });
 
     const priceData = cvToJSON(priceResponse);
@@ -122,35 +122,30 @@ export const formatSTX = (amount) => {
   });
 };
 
-export const fetchAllPositions = async (address) => {
+export const fetchAllPositions = async () => {
   try {
-    const network = new StacksTestnet();
+    const response = await fetch('http://localhost:3001/api/positions');
     
-    // Read all positions for an address
-    const positionsResponse = await callReadOnlyFunction({
-      contractAddress: CONTRACT_ADDRESS,
-      contractName: CONTRACT_NAME,
-      functionName: 'get-all-positions',
-      functionArgs: [principalCV(address)],
-      network,
-    });
-
-    const positions = cvToJSON(positionsResponse);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
-    if (!positions || !positions.value.length) {
+    const positions = await response.json();
+    console.log('Fetched all positions:', positions);
+    if (!positions || !positions.length) {
       return [];
     }
 
-    // Parse each position
-    return positions.value.map(pos => ({
-      owner: pos.value.owner.value,
-      amount: parseInt(pos.value.amount.value),
-      openPrice: parseInt(pos.value.open_price.value),
-      openBlock: parseInt(pos.value.open_block.value),
-      closingBlock: parseInt(pos.value.closing_block.value),
-      long: pos.value.long.value,
-      matched: pos.value.matched?.value || null,
-      settled: pos.value.settled?.value || false
+    // Parse each position using the structure from your backend
+    return positions.map(pos => ({
+      owner: pos.address,
+      amount: pos.amount,
+      openValue: pos.openValue,
+      openBlock: pos.openBlock,
+      closingBlock: pos.closingBlock,
+      premium: pos.premium,
+      long: pos.long,
+      matched: pos.matched,
     }));
   } catch (error) {
     console.error('Error fetching all positions:', error);
