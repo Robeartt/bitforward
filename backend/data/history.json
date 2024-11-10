@@ -1,0 +1,36 @@
+[
+  {
+    "address": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+    "amount": 100000000,
+    "closingBlock": 49,
+    "long": true,
+    "matched": "ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5",
+    "openBlock": 39,
+    "openValue": 1200000000,
+    "premium": 3000000,
+    "closedAt": 1731235529857,
+    "closedAtBlock": 49,
+    "closeTransaction": {
+      "txid": "cedbd899f974344acf5ce3bd67694c778b9e097de0d0f6c2a3f30def3439eeb4"
+    },
+    "closePrice": 15000000,
+    "status": "closed"
+  },
+  {
+    "address": "ST1SJ3DTE5DN7X54YDH5D64R3BCB6A2AG2ZQ8YPD5",
+    "amount": 100000000,
+    "closingBlock": 49,
+    "long": false,
+    "matched": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+    "openBlock": 39,
+    "openValue": 1200000000,
+    "premium": 3000000,
+    "closedAt": 1731235529857,
+    "closedAtBlock": 49,
+    "closeTransaction": {
+      "txid": "cedbd899f974344acf5ce3bd67694c778b9e097de0d0f6c2a3f30def3439eeb4"
+    },
+    "closePrice": 15000000,
+    "status": "closed"
+  }
+]

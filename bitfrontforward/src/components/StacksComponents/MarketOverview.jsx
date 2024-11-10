@@ -24,8 +24,8 @@ const MarketOverview = () => {
   }, []);
 
   const calculatePremiumPercentage = () => {
-    if (marketData.price === 0) return 0;
-    return (marketData.premium / marketData.price) * 100;
+    console.log(marketData.premium);
+    return (marketData.premium * 100);
   };
 
   return (

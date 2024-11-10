@@ -107,7 +107,7 @@ const Positions = () => {
   return (
     <div className="bg-gray-900 rounded-lg shadow-lg p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">Matched Positions</h2>
+        <h2 className="text-xl font-bold">Open Positions</h2>
         <div className="text-sm text-gray-400">
           Current Block: {currentBlock}
         </div>

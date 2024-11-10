@@ -11,7 +11,7 @@ plan:
         - contract-publish:
             contract-name: bitforward
             expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            cost: 60340
+            cost: 60380
             path: contracts/bitforward.clar
             anchor-block-only: true
             clarity-version: 3
