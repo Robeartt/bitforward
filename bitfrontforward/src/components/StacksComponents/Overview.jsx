@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { uintCV } from '@stacks/transactions/dist/clarity';
+import PriceSetter from './PriceSetter';
 import { useStacks } from '../../context/StacksContext';
 import { 
   fetchPositionData, 
@@ -101,7 +102,7 @@ export default function Overview() {
   }
 
   return (
-    <div className="bg-gray-900 rounded-lg p-6">
+    <div className="bg-gray-900 rounded-lg p-6 relative">
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-bold">Your Positions</h2>
@@ -218,6 +219,16 @@ export default function Overview() {
           </div>
         )}
       </div>
+
+      {/* Price Setter in bottom right corner */}
+      <div className="absolute bottom-6 right-6">
+        <PriceSetter 
+          currentPrice={currentPrice}
+          onPriceSet={(newPrice) => {
+            setCurrentPrice(newPrice);
+          }}
+        />
+      </div>
     </div>
-  );
+);
 }

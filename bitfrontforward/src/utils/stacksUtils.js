@@ -3,7 +3,7 @@ import { callReadOnlyFunction, cvToJSON } from '@stacks/transactions';
 import { principalCV, contractPrincipalCV } from '@stacks/transactions';
 
 const CONTRACT_ADDRESS = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM';
-const CONTRACT_NAME = 'devnet';
+const CONTRACT_NAME = 'bitforward';
 
 export const fetchPositionData = async (address) => {
   try {
