@@ -56,7 +56,27 @@ export const fetchCurrentPrice = async () => {
     });
 
     const priceData = cvToJSON(priceResponse);
-    return parseInt(priceData.value);
+    return parseInt(priceData.value) / 1000000;
+  } catch (error) {
+    console.error('Error fetching current price:', error);
+    return 0;
+  }
+};
+
+export const fetchCurrentPremium = async () => {
+  try {    
+    const priceResponse = await callReadOnlyFunction({
+      contractAddress: CONTRACT_ADDRESS,
+      contractName: CONTRACT_NAME,
+      functionName: 'get-premium',
+      functionArgs: [],
+      validateWithAbi: true,
+      network: "devnet",
+      senderAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+    });
+
+    const priceData = cvToJSON(priceResponse);
+    return parseInt(priceData.value) / 1000000;
   } catch (error) {
     console.error('Error fetching current price:', error);
     return 0;
@@ -65,9 +85,13 @@ export const fetchCurrentPrice = async () => {
 
 export const getCurrentBlock = async () => {
   try {
-    const response = await fetch('https://stacks-node-api.testnet.stacks.co/extended/v1/block');
+    const response = await fetch(`http://localhost:3999/v2/info`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const data = await response.json();
-    return data.height;
+    return data.stacks_tip_height;
   } catch (error) {
     console.error('Error fetching current block:', error);
     return 0;

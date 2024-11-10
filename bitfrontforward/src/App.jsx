@@ -4,6 +4,7 @@ import Overview from "./components/StacksComponents/Overview";
 import WalletConnect from "./components/StacksComponents/WalletConnect";
 import Positions from "./components/StacksComponents/Positions";
 import PositionManagement from "./components/StacksComponents/PositionManagement";
+import MarketOverview from "./components/StacksComponents/MarketOverview";
 
 function App() {
   return (
@@ -17,7 +18,7 @@ function App() {
             </h1>
             <WalletConnect />
           </div>
-          <h2 className="text-center text-lg font-medium mt-4">Overview</h2>
+          <MarketOverview />
         </nav>
 
         <main className="container mx-auto py-8 px-4">
