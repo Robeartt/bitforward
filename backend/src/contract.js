@@ -42,6 +42,25 @@ export class BitForwardContract {
         }
     }
 
+    async getPrice() {
+        const functionName = "get-price";
+        try {
+            const response = await fetchCallReadOnlyFunction({
+                contractAddress: this.contractAddress,
+                contractName: this.contractName,
+                functionName,
+                functionArgs: [],
+                validateWithAbi: true,
+                network: "devnet",
+                senderAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+            });
+            return parseInt(response.value);
+        } catch (error) {
+            console.error("Error getting price:", error);
+            throw error;
+        }
+    }
+
     async setPrice(newPrice) {
         if (!CONTRACT_OWNER_KEY) {
             throw new Error("Contract owner private key not configured");
@@ -79,11 +98,12 @@ export class BitForwardContract {
                 contractAddress: this.contractAddress,
                 contractName: this.contractName,
                 functionName,
-                functionArgs: [contractPrincipalCV(positionAddress)],
+                functionArgs: [principalCV(positionAddress)],
                 senderKey: CONTRACT_OWNER_KEY,
                 network: "devnet",
                 anchorMode: AnchorMode.ANY,
                 postConditionMode: PostConditionMode.Allow,
+                fee: 200n
             });
 
             const broadcastResponse = await broadcastTransaction({

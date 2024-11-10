@@ -5,6 +5,7 @@ import WalletConnect from "./components/StacksComponents/WalletConnect";
 import Positions from "./components/StacksComponents/Positions";
 import PositionManagement from "./components/StacksComponents/PositionManagement";
 import MarketOverview from "./components/StacksComponents/MarketOverview";
+import History from "./components/StacksComponents/History";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
             <Overview />
             <PositionManagement />
             <Positions />
+            <History />
           </div>
         </main>
       </div>

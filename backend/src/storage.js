@@ -53,7 +53,21 @@ class Storage {
   }
 
   addPosition(position) {
-    this.positions.push(position);
+    const existingIndex = this.positions.findIndex(p => p.address === position.address);
+    
+    if (existingIndex !== -1) {
+      // Update existing position
+      this.positions[existingIndex] = position;
+    } else {
+      // Add new position
+      this.positions.push(position);
+    }
+    
+    this.isDirty = true;
+  }
+
+  setPositions(positions) {
+    this.positions = positions;
     this.isDirty = true;
   }
 

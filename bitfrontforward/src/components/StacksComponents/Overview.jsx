@@ -1,69 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { boolCV, uintCV } from '@stacks/transactions/dist/clarity';
 import { makeStandardSTXPostCondition, FungibleConditionCode } from '@stacks/transactions';
 import { openContractCall } from '@stacks/connect';
 import PriceSetter from './PriceSetter';
 import { useStacks } from '../../context/StacksContext';
-import { positionService } from '../../services/positionService';
-import { 
-  fetchPositionData, 
-  fetchCurrentPrice, 
-  calculatePositionStats, 
-  formatSTX,
-  fetchAllPositions 
-} from '../../utils/stacksUtils';
 
 export default function Overview() {
   const { stacksUser, stacksNetwork } = useStacks();
-  const [positions, setPositions] = useState([]);
-  const [currentPrice, setCurrentPrice] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [showCreatePosition, setShowCreatePosition] = useState(false);
   const [amount, setAmount] = useState('');
   const [closeAt, setCloseAt] = useState('');
   const [positionType, setPositionType] = useState('long');
-  const [isHoveringCreate, setIsHoveringCreate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [transactionId, setTransactionId] = useState(null);
-
-  const loadPositions = async () => {
-    if (!stacksUser) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch current price first
-      const price = await fetchCurrentPrice();
-      setCurrentPrice(price);
-
-      // Fetch positions
-      const userPositions = await fetchAllPositions(stacksUser.profile.stxAddress.testnet);
-      const positionsWithStats = await Promise.all(
-        userPositions.map(async (pos) => {
-          const stats = await calculatePositionStats(pos, price);
-          return { ...pos, ...stats };
-        })
-      );
-
-      setPositions(positionsWithStats);
-    } catch (err) {
-      console.error('Error loading positions:', err);
-      setError('Failed to load positions');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPositions();
-    const interval = setInterval(loadPositions, 30000);
-    return () => clearInterval(interval);
-  }, [stacksUser]);
+  const [currentPrice, setCurrentPrice] = useState(0);
 
   const handleCreatePosition = async () => {
     if (!stacksUser) {
@@ -78,7 +28,6 @@ export default function Overview() {
 
     try {
       setIsSubmitting(true);
-      setError(null);
 
       const amountInMicroSTX = Number(amount) * 1000000;
       
@@ -105,7 +54,7 @@ export default function Overview() {
         functionArgs: [
           uintCV(amountInMicroSTX),
           uintCV(Number(closeAt)),
-          boolCV(positionType === 'long') // Using positionType here
+          boolCV(positionType === 'long')
         ],
         network: stacksNetwork,
         postConditions,
@@ -117,7 +66,7 @@ export default function Overview() {
             setShowCreatePosition(false);
             setAmount('');
             setCloseAt('');
-            setPositionType('long'); // Reset position type
+            setPositionType('long');
           
             try {
               const response = await fetch('http://localhost:3001/api/position/new', {
@@ -176,7 +125,7 @@ export default function Overview() {
   return (
     <div className="space-y-6">
       {/* Create New Position Section */}
-      <div className="bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+      <div className="bg-gray-900 rounded-lg shadow-lg overflow-hidden relative">
         <button
           onClick={() => setShowCreatePosition(!showCreatePosition)}
           className="w-full px-6 py-4 flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors"
@@ -292,82 +241,8 @@ export default function Overview() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Your Positions Section */}
-      <div className="bg-gray-900 rounded-lg p-6 relative">
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-bold">Your Positions</h2>
-            <div className="text-gray-400">
-              Current Price: {formatSTX(currentPrice)} STX
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
-              <span className="ml-2 text-gray-400">Loading positions...</span>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8 bg-gray-800 rounded-lg">
-              <p className="text-red-500">{error}</p>
-              <button
-                onClick={loadPositions}
-                className="mt-4 text-indigo-500 hover:text-indigo-400"
-              >
-                Try Again
-              </button>
-            </div>
-          ) : positions.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-gray-500 text-left">
-                    <th className="pb-2">Amount</th>
-                    <th className="pb-2">Type</th>
-                    <th className="pb-2">Entry Price</th>
-                    <th className="pb-2">Current Price</th>
-                    <th className="pb-2">P/L</th>
-                    <th className="pb-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {positions.map((position, index) => (
-                    <tr key={index} className="border-t border-gray-800">
-                      <td className="py-3">{formatSTX(position.amount)} STX</td>
-                      <td className="py-3">
-                        <span className={position.long ? 'text-green-500' : 'text-blue-500'}>
-                          {position.long ? 'Long' : 'Hedge'}
-                        </span>
-                      </td>
-                      <td className="py-3">{formatSTX(position.openPrice)} STX</td>
-                      <td className="py-3">{formatSTX(currentPrice)} STX</td>
-                      <td className={`py-3 ${position.gainsPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {position.gainsPercentage.toFixed(2)}%
-                      </td>
-                      <td className="py-3">
-                        {position.isActive ? (
-                          <span className="text-green-500">Active</span>
-                        ) : (
-                          <span className="text-gray-500">Settled</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-gray-800 rounded-lg">
-              <p className="text-gray-400">No positions found</p>
-              <p className="text-gray-500 text-sm mt-2">
-                Create a new position to start trading
-              </p>
-            </div>
-          )}
-        </div>
-
+        {/* PriceSetter */}
         <div className="absolute bottom-6 right-6">
           <PriceSetter 
             currentPrice={currentPrice}

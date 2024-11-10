@@ -1,7 +1,7 @@
 import { NETWORK } from './config.js';
 
 class BlockHeightCache {
-  constructor(ttlSeconds = 10) { // Reduced to 10 seconds for 1-minute blocks
+  constructor(ttlSeconds = 10) {
     this.height = null;
     this.lastUpdate = null;
     this.ttlSeconds = ttlSeconds;
@@ -23,7 +23,6 @@ const blockHeightCache = new BlockHeightCache();
 
 export async function getCurrentBlockHeight() {
   try {
-    // Return cached value if valid
     if (blockHeightCache.isValid()) {
       return blockHeightCache.height;
     }
@@ -41,7 +40,6 @@ export async function getCurrentBlockHeight() {
     return data.stacks_tip_height;
   } catch (error) {
     console.error('Error fetching block height:', error);
-    // If we have a cached value, return it even if expired
     if (blockHeightCache.height !== null) {
       console.log('Using expired cached block height due to error');
       return blockHeightCache.height;
@@ -70,47 +68,97 @@ export class PositionMonitor {
       this.lastCheckedBlock = currentBlock;
       let hasChanges = false;
 
+      // Get current positions from storage
+      const positions = this.storage.getPositions();
+
       // Filter positions that need to be closed
-      const positionsToClose = this.storage.positions.filter(
-        position => position.position.closing_block <= currentBlock
+      const positionsToClose = positions.filter(
+        position => position.closingBlock <= currentBlock
       );
 
       if (positionsToClose.length === 0) return;
 
       console.log(`Found ${positionsToClose.length} positions to close at block ${currentBlock}`);
 
-      // Update positions array
-      this.storage.positions = this.storage.positions.filter(
-        position => position.position.closing_block > currentBlock
-      );
+      // Get current price before processing any positions
+      let closePrice;
+      try {
+        closePrice = await this.contract.getPrice();
+        console.log(`Current price for closing positions: ${closePrice}`);
+      } catch (error) {
+        console.error('Error getting close price:', error);
+        return; // Don't proceed if we can't get the price
+      }
 
+      // Create a set to track which positions have been processed
+      const processedAddresses = new Set();
+      
+      // Update positions array by removing closed positions
+      const updatedPositions = positions.filter(
+        position => position.closingBlock > currentBlock
+      );
+      
       // Close positions and update history
       for (const position of positionsToClose) {
+        // Skip if we've already processed this position (as part of a matched pair)
+        if (processedAddresses.has(position.address)) {
+          continue;
+        }
+
         try {
           console.log(`Attempting to close position for ${position.address}`);
-          const closeResult = await this.contract.closePosition(
-            position.address,
-            process.env.CONTRACT_OWNER_KEY
-          );
+          const closeResult = await this.contract.closePosition(position.address);
 
-          this.storage.addToHistory({
+          // Add to history with additional metadata
+          const historyEntry = {
             ...position,
             closedAt: Date.now(),
             closedAtBlock: currentBlock,
             closeTransaction: closeResult,
-          });
+            closePrice: closePrice,
+            status: 'closed'
+          };
+          
+          this.storage.addToHistory(historyEntry);
+          processedAddresses.add(position.address);
+
+          // If this position had a match, add it to history without trying to close it
+          if (position.matched) {
+            const matchedPosition = positionsToClose.find(p => p.address === position.matched);
+            if (matchedPosition) {
+              const matchedHistoryEntry = {
+                ...matchedPosition,
+                closedAt: Date.now(),
+                closedAtBlock: currentBlock,
+                closeTransaction: closeResult, // Same transaction as it's closed together
+                closePrice: closePrice,
+                status: 'closed'
+              };
+              this.storage.addToHistory(matchedHistoryEntry);
+              processedAddresses.add(matchedPosition.address);
+            }
+          }
           
           console.log(`Successfully closed position for ${position.address}`);
           hasChanges = true;
         } catch (error) {
           console.error(`Failed to close position for ${position.address}:`, error);
-          // Add back to positions if closing failed
-          this.storage.addPosition(position);
+          // Add the position back if closing failed
+          updatedPositions.push(position);
+          // If this was a matched position, add back the match as well
+          if (position.matched) {
+            const matchedPosition = positionsToClose.find(p => p.address === position.matched);
+            if (matchedPosition) {
+              updatedPositions.push(matchedPosition);
+            }
+          }
         }
       }
 
+      // Update storage with remaining positions
+      this.storage.setPositions(updatedPositions);
+
       if (hasChanges) {
-        this.storage.isDirty = true;
         await this.storage.persist();
       }
     } catch (error) {
@@ -118,7 +166,7 @@ export class PositionMonitor {
     }
   }
 
-  start(intervalSeconds = 15) { // Check every 15 seconds for 1-minute blocks
+  start(intervalSeconds = 15) {
     if (this.interval) {
       clearInterval(this.interval);
     }

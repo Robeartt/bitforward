@@ -17,7 +17,7 @@
 ;; data vars
 ;;
 (define-data-var current-price uint u0)
-(define-data-var current-premium uint u0)
+(define-data-var current-premium uint u30000)
 
 ;; data maps
 ;;
