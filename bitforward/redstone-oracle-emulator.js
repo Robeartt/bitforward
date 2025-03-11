@@ -8,7 +8,7 @@ const BigNumber = require('bignumber.js');
 // Configuration
 const PRIVATE_KEY = 'your_private_key_here'; // Replace with oracle provider's private key
 const CONTRACT_ADDRESS = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM'; // Replace with contract address
-const CONTRACT_NAME = 'bitforward-with-redstone'; // Replace with deployed contract name
+const CONTRACT_NAME = 'bitforward'; // Replace with deployed contract name
 const STACKS_API_URL = 'http://localhost:20443'; // Your local devnet API URL
 
 // Supported currencies
@@ -18,6 +18,9 @@ const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'JPY', 'CNY', 'AUD'];
 async function fetchBitcoinPrices() {
   try {
     // Using CoinGecko's API for demonstration
+    // powershell script:
+    // Invoke-RestMethod -Uri "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur" -Method Get
+
     const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
       params: {
         ids: 'bitcoin',
