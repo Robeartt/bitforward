@@ -1,229 +1,277 @@
-;;by default, get_price is all in USD. 
+;; BitForward Contract (Simplified)
+;; Uses BitForward Oracle for price feeds
+;; Only stores original positions with counterparty information
 
 ;; constants
 ;;
 (define-constant contract-owner tx-sender)
 (define-constant scalar u1000000)
-(define-constant oracle-provider 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)  ;; Replace with your oracle provider address
 
 ;; errors
 (define-constant err-owner-only (err u100))
-(define-constant err-already-has-position (err u101))
 (define-constant err-no-value (err u102))
-(define-constant err-close-height-not-reached (err u103))
+(define-constant err-close-time-not-reached (err u103))
 (define-constant err-close-in-past (err u104))
 (define-constant err-no-position (err u105))
-(define-constant err-already-matched (err u106))
+(define-constant err-already-has-counterparty (err u106))
 (define-constant err-price-not-set (err u107))
 (define-constant err-divide-by-zero (err u108))
-(define-constant err-unauthorized-oracle (err u109))
-(define-constant err-currency-not-supported (err u110))
+(define-constant err-asset-not-supported (err u110))
+(define-constant err-invalid-leverage (err u111))
+(define-constant err-unauthorized (err u112))
+(define-constant err-position-not-found (err u113))
+(define-constant err-oracle-not-set (err u114))
 
 ;; data vars
 ;;
-(define-data-var current-price uint u0)
-(define-data-var current-premium uint u30000)
-
-;; Define supported currencies map (using currency codes as keys)
-(define-map supported-currencies (string-ascii 3) bool)
-
-;; Define price feeds for different currencies
-(define-map price-feeds (string-ascii 3) uint)
+(define-data-var next-position-id uint u1)
+(define-data-var oracle-contract (optional principal) none)  ;; Store oracle contract address
 
 ;; data maps
 ;;
-(define-map positions principal 
+
+;; Store positions by ID - now with counterparty info directly included
+(define-map positions uint 
     {
+        owner: principal,
         amount: uint,
         long: bool,
         premium: uint,
-        open_value: uint,
-        open_block: uint,
-        closing_block: uint,
-        matched: (optional principal),
-        currency: (string-ascii 3)
+        open_price: uint,
+        closing_time: uint,
+        counterparty: (optional { id: uint, principal: principal }),  ;; Store counterparty ID and principal
+        asset: (string-ascii 3),
+        leverage: uint
     }
 )
 
-;; Initialize supported currencies
-(define-public (initialize-currencies)
-    (begin
-        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-        (map-set supported-currencies "USD" true)
-        (map-set supported-currencies "CAD" true)
-        (map-set supported-currencies "EUR" true)
-        (map-set supported-currencies "GBP" true)
-        (map-set supported-currencies "JPY" true)
-        (map-set supported-currencies "CNY" true)
-        (map-set supported-currencies "AUD" true)
-        (ok true)
-    )
-)
-
-;; Oracle update function - allows the oracle provider to update prices
-(define-public (update-price-feed (currency (string-ascii 3)) (new-price uint))
-    (begin
-        ;; Check if the caller is the authorized oracle provider
-        (asserts! (is-eq tx-sender oracle-provider) err-unauthorized-oracle)
-        ;; Check if the currency is supported
-        (asserts! (default-to false (map-get? supported-currencies currency)) err-currency-not-supported)
-        ;; Update the price feed for this currency
-        (map-set price-feeds currency new-price)
-        ;; If this is USD, also update the legacy current-price for backward compatibility
-        (if (is-eq currency "USD")
-            (var-set current-price new-price)
-            true
-        )
-        (ok new-price)
-    )
-)
-
-;; Get price for a specific currency
-(define-read-only (get-price-for-currency (currency (string-ascii 3)))
-    (begin
-        (asserts! (default-to false (map-get? supported-currencies currency)) err-currency-not-supported)
-        (ok (default-to u0 (map-get? price-feeds currency)))
-    )
-)
+;; Track user's positions (principal -> list of position IDs)
+(define-map user-positions principal (list 100 uint))
 
 ;; public functions
 ;;
-(define-public (set-price (new-price uint))
+
+;; Set or update the oracle contract address
+(define-public (set-oracle-contract (new-oracle principal))
     (begin
+        ;; Only contract owner can set the oracle
         (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-        (asserts! (> new-price u0) err-no-value)
-        (var-set current-price new-price)
-        (ok new-price)
+        (var-set oracle-contract (some new-oracle))
+        (ok new-oracle)
     )
 )
 
-(define-public (set-premium (new-premium uint))
-    (begin
-        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-        (var-set current-premium new-premium)
-        (ok new-premium)
+;; Get the current oracle contract
+(define-read-only (get-oracle-contract)
+    (var-get oracle-contract)
+)
+
+;; Private function to check and get the oracle contract
+(define-private (get-oracle)
+    (match (var-get oracle-contract)
+        oracle-principal oracle-principal
+        (err err-oracle-not-set)
     )
 )
 
-(define-public (open-position (amount uint) (close-at uint) (type bool) (currency (string-ascii 3)))
+;; Generate a new unique position ID
+(define-private (get-next-position-id)
+    (let ((current-id (var-get next-position-id)))
+        (var-set next-position-id (+ current-id u1))
+        current-id
+    )
+)
+
+;; Add a position ID to a user's list of positions
+(define-private (add-position-to-user (user principal) (position-id uint))
+    (let ((current-positions (default-to (list) (map-get? user-positions user))))
+        (map-set user-positions user (append current-positions position-id))
+    )
+)
+
+;; Open a new position with a specific closing timestamp
+(define-public (open-position (amount uint) (closing-timestamp uint) (type bool) (asset (string-ascii 3)) (premium uint) (leverage uint))
     (begin
-        (asserts! (> close-at u0) err-close-in-past)
+        (asserts! (> closing-timestamp block-time) err-close-in-past)
         (asserts! (> amount u0) err-no-value)
-        (asserts! (default-to false (map-get? supported-currencies currency)) err-currency-not-supported)
-        (asserts! (> (default-to u0 (map-get? price-feeds currency)) u0) err-price-not-set)
-        (asserts! (is-none (get-position tx-sender)) err-already-has-position)
+        (asserts! (> premium u0) err-no-value)
+        (asserts! (>= leverage u1) err-invalid-leverage)  ;; Leverage must be at least 1x
         
-        (let (
-            (currency-price (default-to u0 (map-get? price-feeds currency)))
-            (open-value (unwrap! (mul-fixed amount currency-price) err-divide-by-zero))
-            (premium (unwrap! (mul-fixed amount (var-get current-premium)) err-divide-by-zero))
-        )
-            (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+        ;; Check if asset is supported by oracle
+        (let ((oracle-principal (unwrap! (get-oracle) err-oracle-not-set)))
+            (asserts! (unwrap! (contract-call? oracle-principal is-supported asset) err-asset-not-supported) err-asset-not-supported)
+            
+            ;; Get price from oracle
+            (let ((price-response (unwrap! (contract-call? oracle-principal get-price asset) err-asset-not-supported)))
+                (asserts! (> price-response u0) err-price-not-set)
+                
+                (let (
+                    ;; Calculate premium value based on amount
+                    (premium-value (unwrap! (mul-fixed amount premium) err-divide-by-zero))
+                    (current-time block-time)
+                    (position-id (get-next-position-id))
+                )
+                    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
 
-            (map-set positions tx-sender {
-                amount: amount,
-                long: type,
-                premium: premium,
-                open_value: open-value,
-                open_block: stacks-block-height,
-                closing_block: (+ stacks-block-height close-at),
-                matched: none,
-                currency: currency
-            })
-            (ok "position opened")
-        )
-    )
-)
-
-(define-public (match-position (position principal))
-    (let 
-        ((target-position (unwrap! (get-position position) err-no-position)))
-
-        (asserts! (is-none (get-position tx-sender)) err-already-has-position)
-        (asserts! (is-none (get matched target-position)) err-already-matched)
-        
-        (try! (stx-transfer? (get amount target-position) tx-sender (as-contract tx-sender)))
-        (map-set positions tx-sender {
-            amount: (get amount target-position),
-            long: (not (get long target-position)),
-            premium: (get premium target-position),
-            open_value: (get open_value target-position),
-            open_block: (get open_block target-position),
-            closing_block: (get closing_block target-position),
-            matched: (some position),
-            currency: (get currency target-position)
-        })
-        
-        (map-set positions position 
-            (merge target-position { matched: (some tx-sender) })
-        )
-        
-        (ok "position matched")
-    )
-)
-
-(define-public (close-position (position principal))
-    (let 
-        ((target-position (unwrap! (get-position position) err-no-position))
-         (currency (get currency target-position))
-         (close-price (default-to u0 (map-get? price-feeds currency))))
-
-        (asserts! (>= stacks-block-height (get closing_block target-position)) err-close-height-not-reached)
-        (asserts! (> close-price u0) err-price-not-set)
-
-        (match (get matched target-position)
-            matched-principal (let (
-                (matched-position (unwrap! (get-position matched-principal) err-no-position))
-                ;; Calculate hedge position payout using fixed-point division
-                (hedge-position-payout (unwrap! (div-fixed (get open_value target-position) close-price) err-divide-by-zero))
-                (premium-payout (get premium target-position))
-                (total-hedge-payout (+ hedge-position-payout premium-payout))
-                ;; Calculate total collateral using fixed-point multiplication
-                (total-collateral (* u2 (get amount target-position)))
-                (price-exposure-payout (- total-collateral total-hedge-payout))
+                    ;; Create the new position
+                    (map-set positions position-id {
+                        owner: tx-sender,
+                        amount: amount,
+                        long: type,
+                        premium: premium-value,
+                        open_price: price-response,
+                        closing_time: closing-timestamp,
+                        counterparty: none,  ;; No counterparty yet
+                        asset: asset,
+                        leverage: leverage
+                    })
+                    
+                    ;; Add position to user's list
+                    (add-position-to-user tx-sender position-id)
+                    
+                    (ok position-id)
+                )
             )
-                (if (get long matched-position)
-                    (begin
-                        (try! (as-contract (stx-transfer? total-hedge-payout tx-sender position)))
-                        (try! (as-contract (stx-transfer? price-exposure-payout tx-sender matched-principal)))
-                    )
-                    (begin
-                        (try! (as-contract (stx-transfer? total-hedge-payout tx-sender matched-principal)))
-                        (try! (as-contract (stx-transfer? price-exposure-payout tx-sender position)))
+        )
+    )
+)
+
+;; Take the opposite side of an existing position
+(define-public (take-position (position-id uint))
+    (let 
+        ((target-position (unwrap! (map-get? positions position-id) err-position-not-found)))
+
+        ;; Check if position already has a counterparty
+        (asserts! (is-none (get counterparty target-position)) err-already-has-counterparty)
+        
+        ;; Transfer the required amount
+        (try! (stx-transfer? (get amount target-position) tx-sender (as-contract tx-sender)))
+        
+        ;; Update the position with counterparty info
+        (map-set positions position-id 
+            (merge target-position { 
+                counterparty: (some { 
+                    id: (get-next-position-id),  ;; Generate an ID for the counterparty
+                    principal: tx-sender  ;; Store the counterparty's principal
+                })
+            })
+        )
+        
+        ;; Track that this user has taken a position
+        (add-position-to-user tx-sender position-id)
+        
+        ;; Return the counterparty ID
+        (ok (get id (unwrap! (get counterparty (unwrap! (map-get? positions position-id) err-position-not-found)) err-position-not-found)))
+    )
+)
+
+;; For backward compatibility (alias for take-position)
+(define-public (match-position (position-id uint))
+    (take-position position-id)
+)
+
+;; Close a position
+(define-public (close-position (position-id uint))
+    (let 
+        ((target-position (unwrap! (map-get? positions position-id) err-position-not-found)))
+
+        ;; Check if position has reached closing time
+        (asserts! (>= block-time (get closing_time target-position)) err-close-time-not-reached)
+        
+        ;; Determine who can close the position (either original owner or counterparty)
+        (asserts! 
+            (or 
+                (is-eq tx-sender (get owner target-position))
+                (match (get counterparty target-position)
+                    counterparty (is-eq tx-sender (get principal counterparty))
+                    false
+                )
+            ) 
+            err-unauthorized
+        )
+        
+        (let ((asset (get asset target-position)))
+            ;; Get oracle contract
+            (let ((oracle-principal (unwrap! (get-oracle) err-oracle-not-set)))
+                ;; Get current price from oracle
+                (let ((close-price-response (unwrap! (contract-call? oracle-principal get-price asset) err-asset-not-supported)))
+                    (asserts! (> close-price-response u0) err-price-not-set)
+
+                    (match (get counterparty target-position)
+                        counterparty-info (let (
+                            (original-owner (get owner target-position))
+                            (counterparty-principal (get principal counterparty-info))
+                            (open-price (get open_price target-position))
+                            ;; Calculate price movement percentage
+                            (price-movement (if (get long target-position)
+                                ;; For long positions: (close_price - open_price) / open_price
+                                (unwrap! (div-fixed (- close-price-response open-price) open-price) err-divide-by-zero)
+                                ;; For short positions: (open_price - close_price) / open_price
+                                (unwrap! (div-fixed (- open-price close-price-response) open-price) err-divide-by-zero)
+                            ))
+                            ;; Apply leverage to price movement
+                            (leveraged-return (unwrap! (mul-fixed price-movement (get leverage target-position)) err-divide-by-zero))
+                            ;; Calculate position payout based on leveraged return
+                            (position-payout (+ (get amount target-position) 
+                                              (unwrap! (mul-fixed (get amount target-position) leveraged-return) err-divide-by-zero)))
+                            (premium-payout (get premium target-position))
+                            (total-payout (+ position-payout premium-payout))
+                            ;; Calculate total collateral 
+                            (total-collateral (* u2 (get amount target-position)))
+                            (counterparty-payout (- total-collateral total-payout))
+                        )
+                            ;; Determine who gets which payout based on position type
+                            (if (get long target-position)
+                                (begin
+                                    (try! (as-contract (stx-transfer? total-payout tx-sender original-owner)))
+                                    (try! (as-contract (stx-transfer? counterparty-payout tx-sender counterparty-principal)))
+                                )
+                                (begin
+                                    (try! (as-contract (stx-transfer? total-payout tx-sender counterparty-principal)))
+                                    (try! (as-contract (stx-transfer? counterparty-payout tx-sender original-owner)))
+                                )
+                            )
+                            ;; Delete the position
+                            (map-delete positions position-id)
+                            (ok total-payout)
+                        )
+                        ;; If not matched, return full amount to position owner
+                        (begin
+                            (try! (as-contract (stx-transfer? (get amount target-position) tx-sender (get owner target-position))))
+                            (map-delete positions position-id)
+                            (ok (get amount target-position))
+                        )
                     )
                 )
-                (map-delete positions matched-principal)
-                (map-delete positions position)
-                (ok total-hedge-payout)
-            )
-            ;; If not matched, return full amount to position owner
-            (begin
-                (try! (as-contract (stx-transfer? (get amount target-position) tx-sender position)))
-                (map-delete positions position)
-                (ok (get amount target-position))
             )
         )
     )
 )
 
-;; read only functions
-;;
-(define-read-only (get-position (user principal))
-    (map-get? positions user)
+;; Get a specific position by ID
+(define-read-only (get-position (position-id uint))
+    (map-get? positions position-id)
 )
 
-;;Available only for backward compatibility
-;;
-(define-read-only (get-price)
-   (var-get current-price)
+;; Get all positions for a user (either as owner or counterparty)
+(define-read-only (get-user-positions (user principal))
+    (default-to (list) (map-get? user-positions user))
 )
 
-(define-read-only (get-premium)
-    (var-get current-premium)
-)
-
-(define-read-only (is-currency-supported (currency (string-ascii 3)))
-    (default-to false (map-get? supported-currencies currency))
+;; Check if a user is involved in a position (either as owner or counterparty)
+(define-read-only (is-position-participant (user principal) (position-id uint))
+    (let ((position (map-get? positions position-id)))
+        (match position
+            pos (or 
+                    (is-eq user (get owner pos))
+                    (match (get counterparty pos)
+                        cp (is-eq user (get principal cp))
+                        false
+                    )
+                )
+            false
+        )
+    )
 )
 
 ;; private functions
