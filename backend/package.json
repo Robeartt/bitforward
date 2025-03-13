@@ -15,6 +15,7 @@
   "dependencies": {
     "@stacks/network": "^7.0.0",
     "@stacks/transactions": "^7.0.0",
+    "axios": "^1.8.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.1"
