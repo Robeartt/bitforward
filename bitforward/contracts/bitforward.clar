@@ -1,6 +1,6 @@
 ;; =========== CONSTANTS ===========
 (define-constant contract-owner tx-sender)
-(define-constant scalar u1000000)
+(define-constant scalar u1000000000)
 (define-constant premium-fee-percent u100)  ;; 0.01% fee on premium
 
 ;; Contract status constants
@@ -26,6 +26,7 @@
 (define-constant err-invalid-status (err u117))
 (define-constant err-invalid-position-type (err u122))
 (define-constant err-contract-stopped (err u123))
+(define-constant err-transfer-failed (err u124))
 (define-constant err-test (err u999))
 
 ;; =========== DATA VARIABLES ===========
@@ -96,6 +97,16 @@
     (ok (/ (* a b) scalar))
 )
 
+;; =========== SBTC TRANSFER FUNCTIONS ===========
+
+;; Private function to handle sBTC transfers
+(define-private (transfer-sbtc (amount uint) (sender principal) (recipient principal))
+    (let ((transfer-result (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token transfer amount sender recipient none)))
+        (asserts! (is-ok transfer-result) err-transfer-failed)
+        (ok amount)
+    )
+)
+
 ;; =========== CONTRACT FUNCTIONS ===========
 
 ;; Create a new contract (either long or short position)
@@ -134,8 +145,8 @@
                     (contract-id (get-next-contract-id))
                     (premium-fee (/ (* premium premium-fee-percent) scalar))
                 )
-                    ;; Transfer the amount from user to contract
-                    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+                    ;; Transfer the amount from user to contract using sBTC
+                    (try! (transfer-sbtc amount tx-sender (as-contract tx-sender)))
 
                     ;; Mint the NFT for creator's position
                     (let ((position-result (contract-call? .bitforward-nft mint-position tx-sender contract-id)))
@@ -183,8 +194,8 @@
     (let ((collateral-amount (get collateral-amount target-contract))
           (has-long (> (get long-id target-contract) u0)))
 
-      ;; Transfer collateral amount from taker
-      (try! (stx-transfer? collateral-amount tx-sender (as-contract tx-sender)))
+      ;; Transfer collateral amount from taker using sBTC
+      (try! (transfer-sbtc collateral-amount tx-sender (as-contract tx-sender)))
 
       ;; Mint NFT for the counterparty position
       (let ((position-result (contract-call? .bitforward-nft mint-position tx-sender contract-id)))
@@ -305,10 +316,10 @@
                                  (long-payout (+ collateral-amount long-profit premium-after-fee))
                                  (short-payout (- total-pool long-payout)))
                                 
-                                ;; Distribute payouts to position owners and fee to recipient
-                                (try! (as-contract (stx-transfer? long-payout tx-sender long-owner)))
-                                (try! (as-contract (stx-transfer? short-payout tx-sender short-owner)))
-                                (try! (as-contract (stx-transfer? premium-fee tx-sender contract-owner)))
+                                ;; Distribute payouts to position owners and fee to recipient using sBTC
+                                (try! (as-contract (transfer-sbtc long-payout tx-sender long-owner)))
+                                (try! (as-contract (transfer-sbtc short-payout tx-sender short-owner)))
+                                (try! (as-contract (transfer-sbtc premium-fee tx-sender contract-owner)))
                                 
                                 ;; Update contract with payout information and status
                                 (map-set contracts contract-id

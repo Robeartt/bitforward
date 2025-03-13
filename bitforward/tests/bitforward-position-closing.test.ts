@@ -8,12 +8,6 @@ const wallet1 = accounts.get('wallet_1')!;
 const wallet2 = accounts.get('wallet_2')!;
 const wallet3 = accounts.get('wallet_3')!;
 
-const scalar = 1000000; // 1.0 with 6 decimal places
-simnet.mintSTX(deployer, BigInt(1000000 * scalar)); // 1,000 STX
-simnet.mintSTX(wallet1, BigInt(1000000 * scalar)); // 1,000 STX
-simnet.mintSTX(wallet2, BigInt(1000000 * scalar)); // 1,000 STX
-simnet.mintSTX(wallet3, BigInt(1000000 * scalar)); // 1,000 STX
-
 // Define a proper interface for the contract data with nested structure
 interface ContractData {
     value: {
@@ -337,69 +331,66 @@ describe('bitforward-closing', () => {
             expect(shortPayout).toBeCloseTo(expectedShortPayout, -5);
         });
 
-        // it('closes contract early if long position would be liquidated', () => {
-        //     // Setup a filled position with higher leverage
-        //     const closingBlock = simnet.burnBlockHeight + 20; // Far in the future
-        //     const longLeverage = 5 * scalar; // 5x leverage
+        it('closes contract early if long position would be liquidated', () => {
+            // Setup a filled position with higher leverage
+            const closingBlock = simnet.burnBlockHeight + 20; // Far in the future
+            const longLeverage = 5 * scalar; // 5x leverage
 
-        //     // Create a long position with 5x leverage
-        //     const createResult = simnet.callPublicFn('bitforward', 'create-position', [
-        //         Cl.uint(collateralAmount),
-        //         Cl.uint(closingBlock),
-        //         Cl.bool(true), // Long
-        //         Cl.stringAscii(usdAsset),
-        //         Cl.uint(premium),
-        //         Cl.uint(longLeverage), // 5x leverage
-        //         Cl.uint(scalar) // 1x for short
-        //     ], wallet1);
+            // Create a long position with 5x leverage
+            const createResult = simnet.callPublicFn('bitforward', 'create-position', [
+                Cl.uint(collateralAmount),
+                Cl.uint(closingBlock),
+                Cl.bool(true), // Long
+                Cl.stringAscii(usdAsset),
+                Cl.uint(premium),
+                Cl.uint(longLeverage), // 5x leverage
+                Cl.uint(scalar) // 1x for short
+            ], wallet1);
 
-        //     // Get the NFT ID and then the contract ID
-        //     const creatorNftId = extractNftId(createResult);
-        //     const contractId = getContractIdFromNft(creatorNftId);
+            // Get the NFT ID and then the contract ID
+            const creatorNftId = extractNftId(createResult);
+            const contractId = getContractIdFromNft(creatorNftId);
 
-        //     // Take the position
-        //     simnet.callPublicFn('bitforward', 'take-position', [
-        //         Cl.uint(contractId)
-        //     ], wallet2);
+            // Take the position
+            simnet.callPublicFn('bitforward', 'take-position', [
+                Cl.uint(contractId)
+            ], wallet2);
 
-        //     // Update price to cause liquidation (down by >20%)
-        //     // With 5x leverage, a ~20% drop would liquidate the long position
-        //     const liquidationPrice = usdPrice * 75 / 100; // 25% down
-        //     simnet.callPublicFn('bitforward-oracle', 'set-price', [
-        //         Cl.stringAscii(usdAsset),
-        //         Cl.uint(liquidationPrice)
-        //     ], deployer);
+            // Update price to cause liquidation (down by >20%)
+            // With 5x leverage, a ~20% drop would liquidate the long position
+            const liquidationPrice = usdPrice * 75 / 100; // 25% down
+            simnet.callPublicFn('bitforward-oracle', 'set-price', [
+                Cl.stringAscii(usdAsset),
+                Cl.uint(liquidationPrice)
+            ], deployer);
 
-        //     // Ensure the contract has enough STX for payouts
-        //     simnet.mintSTX('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward', BigInt(1000000 * scalar)); // 1,000 STX
+            // Attempt to close the contract before closing block
+            const closeResult = simnet.callPublicFn('bitforward', 'close-contract', [
+                Cl.uint(contractId)
+            ], wallet3);
 
-        //     // Attempt to close the contract before closing block
-        //     const closeResult = simnet.callPublicFn('bitforward', 'close-contract', [
-        //         Cl.uint(contractId)
-        //     ], wallet3);
+            // Verify close was successful due to liquidation condition
+            expect(closeResult.result).toBeOk(Cl.bool(true));
 
-        //     // Verify close was successful due to liquidation condition
-        //     expect(closeResult.result).toBeOk(Cl.bool(true));
+            // Verify contract was closed
+            const contractInfo = simnet.callReadOnlyFn('bitforward', 'get-contract', [
+                Cl.uint(contractId)
+            ], deployer);
 
-        //     // Verify contract was closed
-        //     const contractInfo = simnet.callReadOnlyFn('bitforward', 'get-contract', [
-        //         Cl.uint(contractId)
-        //     ], deployer);
+            // Convert to proper format using JSON
+            const contractData = JSON.parse(JSON.stringify(contractInfo.result)) as ContractData;
 
-        //     // Convert to proper format using JSON
-        //     const contractData = JSON.parse(JSON.stringify(contractInfo.result)) as ContractData;
+            // Verify contract status
+            expect(contractData).not.toBeNull();
+            expect(contractData.value.data['status'].value).toBe('3'); // statusClosed
 
-        //     // Verify contract status
-        //     expect(contractData).not.toBeNull();
-        //     expect(contractData.value.data['status'].value).toBe('3'); // statusClosed
+            // Verify the short side received most of the pool
+            const shortPayout = Number(contractData.value.data['short-payout'].value);
+            const longPayout = Number(contractData.value.data['long-payout'].value);
 
-        //     // Verify the short side received most of the pool
-        //     const shortPayout = Number(contractData.value.data['short-payout'].value);
-        //     const longPayout = Number(contractData.value.data['long-payout'].value);
-
-        //     // Short should have significantly more than long due to liquidation
-        //     expect(shortPayout).toBeGreaterThan(longPayout);
-        // });
+            // Short should have significantly more than long due to liquidation
+            expect(shortPayout).toBeGreaterThan(longPayout);
+        });
 
         it('rejects closing a non-existent contract', () => {
             // Attempt to close a non-existent contract
@@ -447,9 +438,6 @@ describe('bitforward-closing', () => {
 
             // Advance to closing block
             simnet.mineEmptyBurnBlock();
-
-            // Ensure the contract has enough STX for payouts
-            simnet.mintSTX('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward', BigInt(1000000 * scalar)); // 1,000 STX
 
             // Close the contract
             simnet.callPublicFn('bitforward', 'close-contract', [
