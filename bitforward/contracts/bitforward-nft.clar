@@ -1,8 +1,10 @@
-;; BitForward NFT Implementation - Modified version without traits
-;; This version implements the same functionality but without using traits
+;; BitForward NFT Implementation - Simplified version with test compatibility
+;; This version implements the same functionality but with direct contract checking
+;; while keeping the set-approved-contract function for test compatibility
 
 ;; =========== CONSTANTS ===========
 (define-constant contract-owner tx-sender)
+(define-constant bitforward-contract 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward)
 
 ;; Error codes
 (define-constant err-owner-only (err u300))
@@ -22,8 +24,24 @@
 ;; A contract-id of 0 indicates an invalid/deleted position
 (define-map token-contracts uint uint)
 
-;; Track approved contracts that can mint and manage positions
+;; Track approved contracts for test compatibility
 (define-map approved-contracts principal bool)
+
+;; =========== ADMIN FUNCTIONS ===========
+
+;; Add an approved contract that can mint and manage positions (kept for testing)
+(define-public (set-approved-contract (contract-principal principal) (is-approved bool))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (map-set approved-contracts contract-principal is-approved)
+        (ok is-approved)
+    )
+)
+
+;; Check if a contract is approved
+(define-read-only (is-approved-contract (contract-principal principal))
+    (default-to false (map-get? approved-contracts contract-principal))
+)
 
 ;; =========== NFT INTERFACE FUNCTIONS ===========
 
@@ -49,7 +67,7 @@
         (asserts! (is-eq (some sender) (nft-get-owner? bitforward-contracts token-id)) 
                  err-not-token-owner)
         
-        ;; NEW CHECK: Ensure tx-sender is the sender (the actual token owner)
+        ;; Ensure tx-sender is the sender (the actual token owner)
         (asserts! (is-eq tx-sender sender) err-sender-not-tx-sender)
         
         ;; Ensure position is not deleted (contract-id != 0)
@@ -61,29 +79,15 @@
     )
 )
 
-;; =========== ADMIN FUNCTIONS ===========
-
-;; Add an approved contract that can mint and manage positions
-(define-public (set-approved-contract (contract-principal principal) (is-approved bool))
-    (begin
-        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-        (map-set approved-contracts contract-principal is-approved)
-        (ok is-approved)
-    )
-)
-
-;; Check if a contract is approved
-(define-read-only (is-approved-contract (contract-principal principal))
-    (default-to false (map-get? approved-contracts contract-principal))
-)
-
 ;; =========== POSITION MANAGEMENT FUNCTIONS ===========
 
-;; Mint a new NFT position (can only be called by approved contracts)
+;; Mint a new NFT position (can only be called by the bitforward contract)
 (define-public (mint-position (recipient principal) (contract-id uint))
     (begin
-        ;; Ensure caller is an approved contract
-        (asserts! (is-approved-contract tx-sender) err-not-authorized)
+        ;; Ensure caller is either the bitforward contract or an approved contract (for tests)
+        (asserts! (or (is-eq contract-caller .bitforward) 
+                      (is-approved-contract contract-caller)) 
+                  err-not-authorized)
         
         ;; Ensure contract-id is not 0 (invalid)
         (asserts! (> contract-id u0) err-not-authorized)
