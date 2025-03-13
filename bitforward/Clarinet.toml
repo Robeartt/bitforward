@@ -5,10 +5,22 @@ authors = []
 telemetry = true
 cache_dir = './.cache'
 requirements = []
+
+[contracts.bitforward-oracle]
+path = 'contracts/bitforward-oracle.clar'
+clarity_version = 3
+epoch = 3.0
+
+[contracts.bitforward-nft]
+path = 'contracts/bitforward-nft.clar'
+clarity_version = 3
+epoch = 3.0
+
 [contracts.bitforward]
 path = 'contracts/bitforward.clar'
 clarity_version = 3
 epoch = 3.0
+
 [repl.analysis]
 passes = ['check_checker']
 

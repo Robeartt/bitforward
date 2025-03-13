@@ -5,16 +5,17 @@
 ;; constants
 ;;
 (define-constant owner tx-sender)
-(define-constant err-owner-only (err u100))
-(define-constant err-asset-not-supported (err u110))
-(define-constant err-no-value (err u102))
+(define-constant err-owner-only (err u200))
+(define-constant err-asset-not-supported (err u201))
+(define-constant err-no-value (err u202))
 
-;; Define supported assets map - initialized with fixed assets
-(define-map supported (string-ascii 3) bool {
-    "USD": true,
-    "EUR": true,
-    "GBP": true
-})
+;; Define supported assets map
+(define-map supported (string-ascii 3) bool)
+
+;; Initialize supported assets
+(map-set supported "USD" true)
+(map-set supported "EUR" true)
+(map-set supported "GBP" true)
 
 ;; Define price feeds for different assets
 (define-map prices (string-ascii 3) uint)
@@ -29,7 +30,7 @@
         ;; Update the price feed for this asset
         (asserts! (> price u0) err-no-value)
         (map-set prices asset price)
-        (ok price)
+        (ok true)
     )
 )
 
@@ -41,7 +42,8 @@
         (asserts! (is-eq tx-sender owner) err-owner-only)
         
         ;; Process each price update
-        (ok (map update-single updates))
+        (map update-single updates)
+        (ok true)
     )
 )
 
@@ -54,9 +56,9 @@
         (if (and (default-to false (map-get? supported asset)) (> price u0))
             (begin
                 (map-set prices asset price)
-                (ok price)
+                true
             )
-            (err err-asset-not-supported)
+            false
         )
     )
 )
@@ -67,9 +69,4 @@
         (asserts! (default-to false (map-get? supported asset)) err-asset-not-supported)
         (ok (default-to u0 (map-get? prices asset)))
     )
-)
-
-;; Check if an asset is supported
-(define-read-only (is-supported (asset (string-ascii 3)))
-    (default-to false (map-get? supported asset))
 )
