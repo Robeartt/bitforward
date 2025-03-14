@@ -335,73 +335,79 @@
                                 ((collateral-amount (get collateral-amount target-contract))
                                  (premium (get premium target-contract))
                                  
-                                 ;; Calculate price movement percentage (as int)
-                                 ;; First convert values to int for calculation
+                                 ;; Calculate price movement percentage (as int for calculation)
                                  (price-diff (to-int (- current-price open-price)))
                                  (open-price-int (to-int open-price))
                                  ;; Calculate price movement
                                  (price-movement-result (div-fixed-int price-diff open-price))
                                  (price-movement (unwrap! price-movement-result err-divide-by-zero))
                                  
-                                 ;; Calculate long position P&L (all as int)
-                                 (leverage-int (to-int long-leverage))
-                                 (collateral-int (to-int collateral-amount))
-                                 ;; Calculate PnL steps
-                                 (long-pnl-result (mul-fixed-int price-movement leverage-int))
-                                 (long-pnl (unwrap! long-pnl-result err-divide-by-zero))
-                                 (long-profit-result (mul-fixed-int long-pnl collateral-int))
-                                 (long-profit (unwrap! long-profit-result err-divide-by-zero))
+                                 ;; Calculate premium amounts based on direction
+                                 (premium-to-long (if (>= premium 0) (to-uint (abs-int premium)) u0))
+                                 (premium-to-short (if (< premium 0) (to-uint (abs-int premium)) u0))
                                  
-                                 ;; Determine premium direction based on sign
-                                 (premium-to-long (if (>= premium 0) premium 0))
-                                 (premium-to-short (if (< premium 0) (abs-int premium) 0))
-                                 
-                                 ;; Calculate fee on absolute premium value
-                                 (premium-abs (abs-int premium))
-                                 (premium-fee-percent-int (to-int premium-fee-percent))
-                                 (premium-fee-result (mul-fixed-int premium-abs premium-fee-percent-int))
+                                 ;; Calculate fee on the premium (always positive)
+                                 (premium-abs-uint (to-uint (abs-int premium)))
+                                 (premium-fee-result (mul-fixed premium-abs-uint premium-fee-percent))
                                  (premium-fee (unwrap! premium-fee-result err-divide-by-zero))
                                  
-                                 ;; Adjust premium after fee (subtract fee from recipient)
-                                 (long-premium-after-fee (if (>= premium 0) 
-                                                         (to-uint (- premium-to-long premium-fee))
-                                                         (to-uint premium-to-long)))
-                                 (short-premium-after-fee (if (< premium 0)
-                                                          (to-uint (- premium-to-short premium-fee))
-                                                          (to-uint premium-to-short)))
-                                 
-                                 ;; Total available pool (both collaterals)
-                                 (total-available-pool (* collateral-amount u2))
+                                 ;; Adjust premium to account for fee (reduce the recipient's premium)
+                                 (premium-to-long-after-fee (if (>= premium 0)
+                                                              (if (> premium-to-long premium-fee)
+                                                                  (- premium-to-long premium-fee)
+                                                                  u0)
+                                                              u0))
+                                 (premium-to-short-after-fee (if (< premium 0)
+                                                               (if (> premium-to-short premium-fee)
+                                                                   (- premium-to-short premium-fee)
+                                                                   u0)
+                                                               u0))
                                  
                                  ;; Base payouts start with collateral amount
-                                 (long-base collateral-int)
-                                 (short-base collateral-int)
+                                 (base-payout collateral-amount)
                                  
-                                 ;; Add profit/loss to base
-                                 (long-with-pnl (+ long-base long-profit))
-                                 (short-with-pnl (- short-base long-profit))
+                                 ;; Calculate profit/loss for long (as uint)
+                                 (leverage-int (to-int long-leverage))
+                                 (profit-calc-result (mul-fixed-int price-movement leverage-int))
+                                 (profit-calc (unwrap! profit-calc-result err-divide-by-zero))
+                                 (profit-amount-result (mul-fixed-int profit-calc (to-int collateral-amount)))
+                                 (profit-amount-int (unwrap! profit-amount-result err-divide-by-zero))
                                  
-                                 ;; Add premium to payouts (converting back to uint)
-                                 (long-premium-after-fee-int (to-int long-premium-after-fee))
-                                 (short-premium-after-fee-int (to-int short-premium-after-fee))
-                                 (long-total (+ long-with-pnl long-premium-after-fee-int))
-                                 (short-total (+ short-with-pnl short-premium-after-fee-int))
+                                 ;; Convert to uint for payout calculations
+                                 (long-profit (if (>= profit-amount-int 0) (to-uint profit-amount-int) u0))
+                                 (long-loss (if (< profit-amount-int 0) (to-uint (abs-int profit-amount-int)) u0))
                                  
-                                 ;; Ensure no negative payouts - minimum is 0
-                                 (long-payout (if (>= long-total 0) (to-uint long-total) u0))
-                                 (short-payout (if (>= short-total 0) (to-uint short-total) u0))
+                                 ;; Calculate long payout: base + profit - loss + premium (after fee)
+                                 (long-payout-base (if (>= profit-amount-int 0)
+                                                     (+ base-payout long-profit)
+                                                     (if (> base-payout long-loss)
+                                                         (- base-payout long-loss)
+                                                         u0)))
+                                 (long-payout (+ long-payout-base premium-to-long-after-fee))
                                  
-                                 ;; The fee is always positive
-                                 (fee-payout (to-uint premium-fee)))
+                                 ;; Calculate short payout: base - profit + loss - premium (no fee deduction)
+                                 (short-payout-base (if (>= profit-amount-int 0)
+                                                      (if (> base-payout long-profit)
+                                                          (- base-payout long-profit)
+                                                          u0)
+                                                      (+ base-payout long-loss)))
+                                 
+                                 ;; Short always pays the full premium (if positive)
+                                 (short-payout-before-premium-payment short-payout-base)
+                                 (short-payout (if (>= premium 0)
+                                                 (if (> short-payout-before-premium-payment premium-to-long)
+                                                     (- short-payout-before-premium-payment premium-to-long)
+                                                     u0)
+                                                 (+ short-payout-before-premium-payment premium-to-short-after-fee))))
                                 
                                 ;; ASSERT: Verify that total payouts don't exceed the available pool
-                                (asserts! (<= (+ long-payout short-payout fee-payout) total-available-pool) 
+                                (asserts! (<= (+ (+ long-payout short-payout) premium-fee) (* collateral-amount u2)) 
                                           err-payout-exceeds-pool)
                                 
                                 ;; Distribute payouts to position owners and fee to recipient using sBTC
                                 (try! (as-contract (transfer-sbtc long-payout tx-sender long-owner)))
                                 (try! (as-contract (transfer-sbtc short-payout tx-sender short-owner)))
-                                (try! (as-contract (transfer-sbtc fee-payout tx-sender contract-owner)))
+                                (try! (as-contract (transfer-sbtc premium-fee tx-sender contract-owner)))
                                 
                                 ;; Update contract with payout information and status
                                 (map-set contracts contract-id

@@ -95,6 +95,7 @@ describe('bitforward-position-closing-extended', () => {
             const contract = utils.getContract(contractId);
             expect(contract).not.toBeNull();
             expect(contract?.status).toBe(STATUS_CLOSED);
+            console.log(contract)
         });
     });
 
