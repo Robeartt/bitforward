@@ -27,7 +27,7 @@ export async function getCurrentBlockHeight() {
       return blockHeightCache.height;
     }
 
-    const networkUrl = NETWORK.url;
+    const networkUrl = "https://stacks-node-api.testnet.stacks.co";
     const infoUrl = `${networkUrl}/v2/info`;
     
     const response = await fetch(infoUrl);
