@@ -24,25 +24,6 @@
 ;; A contract-id of 0 indicates an invalid/deleted position
 (define-map token-contracts uint uint)
 
-;; Track approved contracts for test compatibility
-(define-map approved-contracts principal bool)
-
-;; =========== ADMIN FUNCTIONS ===========
-
-;; Add an approved contract that can mint and manage positions (kept for testing)
-(define-public (set-approved-contract (contract-principal principal) (is-approved bool))
-    (begin
-        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-        (map-set approved-contracts contract-principal is-approved)
-        (ok is-approved)
-    )
-)
-
-;; Check if a contract is approved
-(define-read-only (is-approved-contract (contract-principal principal))
-    (default-to false (map-get? approved-contracts contract-principal))
-)
-
 ;; =========== NFT INTERFACE FUNCTIONS ===========
 
 ;; Get last token ID
@@ -81,13 +62,14 @@
 
 ;; =========== POSITION MANAGEMENT FUNCTIONS ===========
 
-;; Mint a new NFT position (can only be called by the bitforward contract)
+;; Mint a new NFT position (can be called by the bitforward contract, approved contracts, or the owner)
 (define-public (mint-position (recipient principal) (contract-id uint))
     (begin
-        ;; Ensure caller is either the bitforward contract or an approved contract (for tests)
-        (asserts! (or (is-eq contract-caller .bitforward) 
-                      (is-approved-contract contract-caller)) 
-                  err-not-authorized)
+        ;; Ensure caller is either the bitforward contract or the contract owner
+        (asserts! (or 
+                  (is-eq contract-caller .bitforward) 
+                  (is-eq tx-sender contract-owner)) 
+                 err-not-authorized)
         
         ;; Ensure contract-id is not 0 (invalid)
         (asserts! (> contract-id u0) err-not-authorized)

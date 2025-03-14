@@ -1,7 +1,7 @@
 ;; =========== CONSTANTS ===========
 (define-constant contract-owner tx-sender)
-(define-constant scalar u1000000000)
-(define-constant premium-fee-percent u100)  ;; 0.01% fee on premium
+(define-constant scalar u100000000)  ;; 1.0 with 8 decimals (for sBTC compatibility)
+(define-constant premium-fee-percent u1000000)  ;; 1% fee on premium (100 * scalar / 10000)
 
 ;; Contract status constants
 (define-constant status-open u1)
@@ -27,6 +27,7 @@
 (define-constant err-invalid-position-type (err u122))
 (define-constant err-contract-stopped (err u123))
 (define-constant err-transfer-failed (err u124))
+(define-constant err-payout-exceeds-pool (err u125))
 (define-constant err-test (err u999))
 
 ;; =========== DATA VARIABLES ===========
@@ -38,8 +39,7 @@
 (define-map contracts uint 
     {
         collateral-amount: uint,
-        premium: uint,
-        premium-fee: uint,
+        premium: int,           ;; Changed from uint to int to support negative values
         open-price: uint,
         close-price: uint,
         closing-block: uint,
@@ -54,6 +54,9 @@
     }
 )
 
+;; Map to track approved contracts for testing
+(define-map approved-contracts principal bool)
+
 ;; =========== GETTER FUNCTIONS ===========
 
 ;; Check if contract is stopped
@@ -64,6 +67,11 @@
 ;; Get a specific contract by ID
 (define-read-only (get-contract (contract-id uint))
     (map-get? contracts contract-id)
+)
+
+;; Check if a contract is approved
+(define-read-only (is-approved-contract (contract-principal principal))
+    (default-to false (map-get? approved-contracts contract-principal))
 )
 
 ;; =========== ADMIN FUNCTIONS ===========
@@ -86,6 +94,7 @@
 )
 
 ;; =========== FIXED-POINT MATH FUNCTIONS ===========
+;; Original functions for uint types
 (define-private (div-fixed (a uint) (b uint))
     (if (is-eq b u0)
         err-divide-by-zero
@@ -95,6 +104,26 @@
 
 (define-private (mul-fixed (a uint) (b uint))
     (ok (/ (* a b) scalar))
+)
+
+;; New functions for int types
+(define-private (div-fixed-int (a int) (b uint))
+    (if (is-eq b u0)
+        err-divide-by-zero
+        (ok (/ (* a (to-int scalar)) (to-int b)))
+    )
+)
+
+(define-private (mul-fixed-int (a int) (b int))
+    (ok (/ (* a b) (to-int scalar)))
+)
+
+;; =========== ABSOLUTE VALUE FUNCTION ===========
+(define-private (abs-int (value int))
+    (if (< value 0)
+        (* value -1)
+        value
+    )
 )
 
 ;; =========== SBTC TRANSFER FUNCTIONS ===========
@@ -115,7 +144,7 @@
     (closing-block uint)  
     (is-long bool) 
     (asset (string-ascii 3)) 
-    (premium uint) 
+    (premium int)
     (long-leverage uint)
     (short-leverage uint))
     
@@ -126,7 +155,6 @@
         ;; Check if closing block is in the future
         (asserts! (> closing-block burn-block-height) err-close-block-in-past)
         (asserts! (> amount u0) err-no-value)
-        (asserts! (> premium u0) err-no-value)
         
         ;; Validate leverage values - must be at least 1.0 (represented as scalar)
         (asserts! (>= long-leverage scalar) err-invalid-leverage)
@@ -143,7 +171,6 @@
                 
                 (let (
                     (contract-id (get-next-contract-id))
-                    (premium-fee (/ (* premium premium-fee-percent) scalar))
                 )
                     ;; Transfer the amount from user to contract using sBTC
                     (try! (transfer-sbtc amount tx-sender (as-contract tx-sender)))
@@ -159,7 +186,6 @@
                                 {
                                     collateral-amount: amount,
                                     premium: premium,
-                                    premium-fee: premium-fee,
                                     open-price: price-value,
                                     close-price: u0,
                                     closing-block: closing-block,
@@ -229,16 +255,22 @@
         ;; Calculate liquidation threshold based on leverage (adjusted for scalar)
         ;; Formula: 1 / leverage (with all values already scaled)
         (liquidation-threshold (/ scalar leverage))
+        ;; Create a price difference as int
+        (price-diff (to-int (- current-price open-price)))
+        ;; Create int versions of needed values
+        (open-price-int (to-int open-price))
+        (scalar-int (to-int scalar))
+        (threshold-int (to-int liquidation-threshold))
     )
         ;; Try to calculate price movement percentage
-        (match (div-fixed (- current-price open-price) open-price)
+        (match (div-fixed-int price-diff open-price)
             price-movement ;; Success case variable
             (let (
                 ;; For long positions, check if price has dropped below liquidation threshold
                 ;; For short positions, check if price has risen above liquidation threshold
                 (liquidated (if is-long
-                                (<= (+ scalar price-movement) (- scalar liquidation-threshold))
-                                (>= (+ scalar price-movement) (+ scalar liquidation-threshold))))
+                                (<= (+ scalar-int price-movement) (- scalar-int threshold-int))
+                                (>= (+ scalar-int price-movement) (+ scalar-int threshold-int))))
             )
                 liquidated
             )
@@ -302,24 +334,74 @@
                             (let 
                                 ((collateral-amount (get collateral-amount target-contract))
                                  (premium (get premium target-contract))
-                                 (premium-fee (get premium-fee target-contract))
-                                 ;; Calculate total pool (2x collateral)
-                                 (total-pool (* collateral-amount u2))
-                                 ;; Premium after fee deduction
-                                 (premium-after-fee (- premium premium-fee))
-                                 ;; Calculate price movement percentage
-                                 (price-movement (unwrap! (div-fixed (- current-price open-price) open-price) err-divide-by-zero))
-                                 ;; Calculate long position P&L
-                                 (long-pnl (unwrap! (mul-fixed price-movement long-leverage) err-divide-by-zero))
-                                 (long-profit (unwrap! (mul-fixed collateral-amount long-pnl) err-divide-by-zero))
-                                 ;; Calculate final payouts
-                                 (long-payout (+ collateral-amount long-profit premium-after-fee))
-                                 (short-payout (- total-pool long-payout)))
+                                 
+                                 ;; Calculate price movement percentage (as int)
+                                 ;; First convert values to int for calculation
+                                 (price-diff (to-int (- current-price open-price)))
+                                 (open-price-int (to-int open-price))
+                                 ;; Calculate price movement
+                                 (price-movement-result (div-fixed-int price-diff open-price))
+                                 (price-movement (unwrap! price-movement-result err-divide-by-zero))
+                                 
+                                 ;; Calculate long position P&L (all as int)
+                                 (leverage-int (to-int long-leverage))
+                                 (collateral-int (to-int collateral-amount))
+                                 ;; Calculate PnL steps
+                                 (long-pnl-result (mul-fixed-int price-movement leverage-int))
+                                 (long-pnl (unwrap! long-pnl-result err-divide-by-zero))
+                                 (long-profit-result (mul-fixed-int long-pnl collateral-int))
+                                 (long-profit (unwrap! long-profit-result err-divide-by-zero))
+                                 
+                                 ;; Determine premium direction based on sign
+                                 (premium-to-long (if (>= premium 0) premium 0))
+                                 (premium-to-short (if (< premium 0) (abs-int premium) 0))
+                                 
+                                 ;; Calculate fee on absolute premium value
+                                 (premium-abs (abs-int premium))
+                                 (premium-fee-percent-int (to-int premium-fee-percent))
+                                 (premium-fee-result (mul-fixed-int premium-abs premium-fee-percent-int))
+                                 (premium-fee (unwrap! premium-fee-result err-divide-by-zero))
+                                 
+                                 ;; Adjust premium after fee (subtract fee from recipient)
+                                 (long-premium-after-fee (if (>= premium 0) 
+                                                         (to-uint (- premium-to-long premium-fee))
+                                                         (to-uint premium-to-long)))
+                                 (short-premium-after-fee (if (< premium 0)
+                                                          (to-uint (- premium-to-short premium-fee))
+                                                          (to-uint premium-to-short)))
+                                 
+                                 ;; Total available pool (both collaterals)
+                                 (total-available-pool (* collateral-amount u2))
+                                 
+                                 ;; Base payouts start with collateral amount
+                                 (long-base collateral-int)
+                                 (short-base collateral-int)
+                                 
+                                 ;; Add profit/loss to base
+                                 (long-with-pnl (+ long-base long-profit))
+                                 (short-with-pnl (- short-base long-profit))
+                                 
+                                 ;; Add premium to payouts (converting back to uint)
+                                 (long-premium-after-fee-int (to-int long-premium-after-fee))
+                                 (short-premium-after-fee-int (to-int short-premium-after-fee))
+                                 (long-total (+ long-with-pnl long-premium-after-fee-int))
+                                 (short-total (+ short-with-pnl short-premium-after-fee-int))
+                                 
+                                 ;; Ensure no negative payouts - minimum is 0
+                                 (long-payout (if (>= long-total 0) (to-uint long-total) u0))
+                                 (short-payout (if (>= short-total 0) (to-uint short-total) u0))
+                                 
+                                 ;; The fee is always positive
+                                 (fee-payout (to-uint premium-fee)))
+                                
+                                ;; ASSERT: Verify that total payouts don't exceed the available pool
+                                (asserts! (<= (+ long-payout short-payout fee-payout) total-available-pool) 
+                                          err-payout-exceeds-pool)
                                 
                                 ;; Distribute payouts to position owners and fee to recipient using sBTC
                                 (try! (as-contract (transfer-sbtc long-payout tx-sender long-owner)))
                                 (try! (as-contract (transfer-sbtc short-payout tx-sender short-owner)))
-                                (try! (as-contract (transfer-sbtc premium-fee tx-sender contract-owner)))
+                                (try! (as-contract (transfer-sbtc fee-payout tx-sender contract-owner)))
                                 
                                 ;; Update contract with payout information and status
                                 (map-set contracts contract-id
@@ -330,7 +412,7 @@
                                         short-payout: short-payout
                                     }))
                                 
-                                ;; Return the payout amounts and fee
+                                ;; Return success
                                 (ok true)
                             )
                         )

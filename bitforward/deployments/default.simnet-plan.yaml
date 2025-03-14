@@ -62,31 +62,31 @@ plan:
         - emulated-contract-publish:
             contract-name: sbtc-registry
             emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
-            path: ".\\.cache\\requirements\\SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar"
+            path: ".\\.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar"
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: sbtc-token
             emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
-            path: ".\\.cache\\requirements\\SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar"
+            path: ".\\.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar"
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: sbtc-deposit
             emulated-sender: SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4
-            path: ".\\.cache\\requirements\\SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit.clar"
+            path: ".\\.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-deposit.clar"
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: bitforward-nft
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\bitforward-nft.clar"
+            path: contracts/bitforward-nft.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: bitforward-oracle
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\bitforward-oracle.clar"
+            path: contracts/bitforward-oracle.clar
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: bitforward
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: "contracts\\bitforward.clar"
+            path: contracts/bitforward.clar
             clarity-version: 3
       epoch: "3.0"

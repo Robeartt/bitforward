@@ -23,120 +23,25 @@ describe('bitforward-nft', () => {
   const errTokenNotFound = Cl.uint(302);
   const errNotAuthorized = Cl.uint(303);
 
-  describe('admin functions', () => {
-    describe('set-approved-contract', () => {
-      it('allows owner to set approved contracts', () => {
-        // Set the main contract as an approved contract
-        const approveResult = simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-          Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward'),
-          Cl.bool(true)
-        ], deployer);
-
-        // Verify approval was successful
-        expect(approveResult.result).toBeOk(Cl.bool(true));
-
-        // Check if the contract is now approved
-        const isApprovedResult = simnet.callReadOnlyFn('bitforward-nft', 'is-approved-contract', [
-          Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward')
-        ], deployer);
-
-        // Verify the contract is approved
-        expect(isApprovedResult.result).toBeBool(true);
-      });
-
-      it('allows owner to remove approval from contracts', () => {
-        // First approve a contract
-        simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-          Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward'),
-          Cl.bool(true)
-        ], deployer);
-
-        // Now remove approval
-        const revokeResult = simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-          Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward'),
-          Cl.bool(false)
-        ], deployer);
-
-        // Verify revocation was successful
-        expect(revokeResult.result).toBeOk(Cl.bool(false));
-
-        // Check if the contract is now not approved
-        const isApprovedResult = simnet.callReadOnlyFn('bitforward-nft', 'is-approved-contract', [
-          Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward')
-        ], deployer);
-
-        // Verify the contract is no longer approved
-        expect(isApprovedResult.result).toBeBool(false);
-      });
-
-      it('prevents non-owners from setting approved contracts', () => {
-        // Attempt to approve a contract as a non-owner
-        const approveResult = simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-          Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward'),
-          Cl.bool(true)
-        ], wallet1);
-
-        // Verify the result is an error with the owner-only error code
-        expect(approveResult.result).toBeErr(errOwnerOnly);
-      });
-    });
-
-    describe('is-approved-contract', () => {
-      it('returns false for unapproved contracts', () => {
-        // Check a contract that hasn't been approved
-        const isApprovedResult = simnet.callReadOnlyFn('bitforward-nft', 'is-approved-contract', [
-          Cl.principal(wallet2)
-        ], deployer);
-
-        // Verify the result is false
-        expect(isApprovedResult.result).toBeBool(false);
-      });
-
-      it('returns true for approved contracts', () => {
-        // First approve a contract
-        simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-          Cl.principal(wallet1),
-          Cl.bool(true)
-        ], deployer);
-
-        // Check if the contract is approved
-        const isApprovedResult = simnet.callReadOnlyFn('bitforward-nft', 'is-approved-contract', [
-          Cl.principal(wallet1)
-        ], deployer);
-
-        // Verify the result is true
-        expect(isApprovedResult.result).toBeBool(true);
-      });
-    });
-  });
-
   describe('minting functions', () => {
     describe('mint-position', () => {
-      beforeEach(() => {
-        // Set up the deployer as an approved contract for minting
-        simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-          Cl.principal(deployer),
-          Cl.bool(true)
-        ], deployer);
-      });
-
-      it('allows approved contracts to mint positions', () => {
-        // Mint a position using the approved deployer
+      it('allows contract owner to mint positions', () => {
+        // Mint a position using the owner (deployer)
         const mintResult = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet1),
           Cl.uint(contractId1)
-        ], deployer);
+        ], deployer); // deployer is the contract owner
 
         // Verify minting was successful
         expect(mintResult.result).toBeOk(Cl.uint(1)); // First NFT ID should be 1
       });
 
-      it('prevents unapproved contracts from minting positions', () => {
-        // Try to mint with an unapproved wallet
+      it('prevents non-owners from minting positions', () => {
+        // Try to mint with a non-owner wallet
         const unauthorizedMintResult = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet2),
           Cl.uint(contractId1)
-        ], wallet2);
+        ], wallet2); // wallet2 is not the contract owner
 
         // Verify minting fails with unauthorized error
         expect(unauthorizedMintResult.result).toBeErr(errNotAuthorized);
@@ -147,7 +52,7 @@ describe('bitforward-nft', () => {
         const invalidMintResult = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet1),
           Cl.uint(invalidContractId)
-        ], deployer);
+        ], deployer); // deployer is the contract owner
 
         // Verify minting fails with unauthorized error
         expect(invalidMintResult.result).toBeErr(errNotAuthorized);
@@ -158,7 +63,7 @@ describe('bitforward-nft', () => {
         const mintResult = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet1),
           Cl.uint(contractId1)
-        ], deployer);
+        ], deployer); // deployer is the contract owner
 
         const tokenId = 1; // Expected token ID
 
@@ -175,7 +80,7 @@ describe('bitforward-nft', () => {
         const mint1Result = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet1),
           Cl.uint(contractId1)
-        ], deployer);
+        ], deployer); // deployer is the contract owner
 
         expect(mint1Result.result).toBeOk(Cl.uint(1)); // First NFT ID should be 1
 
@@ -183,7 +88,7 @@ describe('bitforward-nft', () => {
         const mint2Result = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet2),
           Cl.uint(contractId2)
-        ], deployer);
+        ], deployer); // deployer is the contract owner
 
         expect(mint2Result.result).toBeOk(Cl.uint(2)); // Second NFT ID should be 2
 
@@ -191,7 +96,7 @@ describe('bitforward-nft', () => {
         const mint3Result = simnet.callPublicFn('bitforward-nft', 'mint-position', [
           Cl.principal(wallet3),
           Cl.uint(contractId2)
-        ], deployer);
+        ], deployer); // deployer is the contract owner
 
         expect(mint3Result.result).toBeOk(Cl.uint(3)); // Third NFT ID should be 3
       });
@@ -200,13 +105,7 @@ describe('bitforward-nft', () => {
 
   describe('token metadata functions', () => {
     beforeEach(() => {
-      // Set up the deployer as an approved contract
-      simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-        Cl.principal(deployer),
-        Cl.bool(true)
-      ], deployer);
-
-      // Mint a position with contract ID 123
+      // Mint a position as contract owner
       simnet.callPublicFn('bitforward-nft', 'mint-position', [
         Cl.principal(wallet1),
         Cl.uint(contractId2)
@@ -314,13 +213,7 @@ describe('bitforward-nft', () => {
 
   describe('transfer functions', () => {
     beforeEach(() => {
-      // Set up the deployer as an approved contract
-      simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-        Cl.principal(deployer),
-        Cl.bool(true)
-      ], deployer);
-
-      // Mint a position to wallet1
+      // Mint a position to wallet1 as contract owner
       simnet.callPublicFn('bitforward-nft', 'mint-position', [
         Cl.principal(wallet1),
         Cl.uint(contractId1)
@@ -436,15 +329,7 @@ describe('bitforward-nft', () => {
 
   describe('integration tests', () => {
     it('supports a full NFT lifecycle', () => {
-      // 1. Set the main contract as an approved contract
-      const approveResult = simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-        Cl.principal(deployer),
-        Cl.bool(true)
-      ], deployer);
-
-      expect(approveResult.result).toBeOk(Cl.bool(true));
-
-      // 2. Mint a position
+      // 1. Mint a position as contract owner
       const mintResult = simnet.callPublicFn('bitforward-nft', 'mint-position', [
         Cl.principal(wallet1),
         Cl.uint(contractId2)
@@ -452,14 +337,14 @@ describe('bitforward-nft', () => {
 
       expect(mintResult.result).toBeOk(Cl.uint(1));
 
-      // 3. Verify token metadata
+      // 2. Verify token metadata
       const uriResult = simnet.callReadOnlyFn('bitforward-nft', 'get-token-uri', [
         Cl.uint(1)
       ], deployer);
 
       expect(uriResult.result).toBeOk(Cl.some(Cl.uint(contractId2)));
 
-      // 4. Transfer the token
+      // 3. Transfer the token
       const transferResult = simnet.callPublicFn('bitforward-nft', 'transfer', [
         Cl.uint(1), // Token ID
         Cl.principal(wallet1), // Sender
@@ -468,7 +353,7 @@ describe('bitforward-nft', () => {
 
       expect(transferResult.result).toBeOk(Cl.bool(true));
 
-      // 5. Verify new ownership
+      // 4. Verify new ownership
       const ownerResult = simnet.callReadOnlyFn('bitforward-nft', 'get-owner', [
         Cl.uint(1)
       ], deployer);

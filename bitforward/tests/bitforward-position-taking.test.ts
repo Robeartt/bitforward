@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Cl } from '@stacks/transactions';
+import { BitForwardUtils, ERRORS, STATUS_OPEN, STATUS_FILLED, STATUS_CLOSED, SCALAR } from './utils/bitforward-test-utils';
+
+// Initialize the BitForward test utilities
+const utils = new BitForwardUtils(simnet);
 
 // Get simnet accounts for testing
 const accounts = simnet.getAccounts();
@@ -8,254 +12,493 @@ const wallet1 = accounts.get('wallet_1')!;
 const wallet2 = accounts.get('wallet_2')!;
 const wallet3 = accounts.get('wallet_3')!;
 
-// Define a proper interface for the contract data with nested structure
-interface ContractData {
-    value: {
-        data: {
-            'collateral-amount': { type: number, value: string };
-            'premium': { type: number, value: string };
-            'premium-fee': { type: number, value: string };
-            'open-price': { type: number, value: string };
-            'close-price': { type: number, value: string };
-            'closing-block': { type: number, value: string };
-            'asset': { type: number, data: string };
-            'long-leverage': { type: number, value: string };
-            'short-leverage': { type: number, value: string };
-            'status': { type: number, value: string };
-            'long-id': { type: number, value: string };
-            'short-id': { type: number, value: string };
-            'long-payout': { type: number, value: string };
-            'short-payout': { type: number, value: string };
-        }
-    }
-}
-
 /*
- * Tests for position taking functionality in the BitForward contract
+ * Comprehensive Tests for position taking in BitForward contract
+ * Using the BitForwardUtils helper functions with better error reporting
  */
-describe('bitforward-position-taking', () => {
-    // Constants for testing
-    const scalar = 1000000; // 1.0 with 6 decimal places
-    const collateralAmount = 1000000000; // 1000 STX
-    const premium = 10000000; // 10 STX
-    const usdAsset = 'USD';
-    const usdPrice = 10000000; // $10 with 6 decimal places
-
-    // Contract status constants
-    const statusOpen = Cl.uint(1);
-    const statusFilled = Cl.uint(2);
-
-    // Error codes from the contract
-    const errContractNotFound = Cl.uint(113);
-    const errAlreadyHasCounterparty = Cl.uint(106);
-
+describe('bitforward-position-taking-extended', () => {
     // Set up test environment before each test
-    beforeEach(() => {
-        // Set up oracle with initial prices
-        simnet.callPublicFn('bitforward-oracle', 'set-price', [
-            Cl.stringAscii(usdAsset),
-            Cl.uint(usdPrice)
-        ], deployer);
-
-        // Approve the bitforward contract to create NFTs
-        simnet.callPublicFn('bitforward-nft', 'set-approved-contract', [
-            Cl.principal('ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward'),
-            Cl.bool(true)
-        ], deployer);
+    beforeEach(async () => {
+        await utils.initialize();
     });
 
-    // Setup function to create a position before testing taking it
-    const setupOpenPosition = (isLong = true) => {
-        const closingBlock = simnet.burnBlockHeight + 10;
-        return simnet.callPublicFn('bitforward', 'create-position', [
-            Cl.uint(collateralAmount),
-            Cl.uint(closingBlock),
-            Cl.bool(isLong),
-            Cl.stringAscii(usdAsset),
-            Cl.uint(premium),
-            Cl.uint(scalar), // 1x leverage
-            Cl.uint(scalar)  // 1x leverage
-        ], wallet1);
-    };
-
-    // Helper to extract a number from the result
-    const extractNumberFromResult = (result: any): number => {
-        // For result of type { type: 7, value: { type: 1, value: 1n } }
-        // This accesses the inner numeric value and converts it to a number
-        return Number(result.value.value);
-    };
-
-    describe('take-position', () => {
-        it('takes an open long position', () => {
+    describe('take-position success cases', () => {
+        it('takes an open long position', async () => {
             // Create a long position
-            const createResult = setupOpenPosition(true);
-            // Extract contract ID number from the result
-            const contractId = extractNumberFromResult(createResult.result);
+            const createResult = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                true, // Long position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
 
-            // Take the position (should be a short position)
-            const takeResult = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId)
-            ], wallet2);
+            // Check if the result is OK (successful)
+            expect(createResult.result).toBeOk(expect.anything());
 
-            // Verify taking was successful and returned position ID
-            expect(takeResult.result).toBeOk(Cl.uint(2)); // Second position ID
+            // Get the position ID from the result
+            const creatorPositionId = utils.getPositionId(createResult);
+            expect(creatorPositionId).toBeGreaterThan(0);
 
-            // Verify contract status was updated
-            const contractInfo = simnet.callReadOnlyFn('bitforward', 'get-contract', [
-                Cl.uint(contractId)
-            ], deployer);
+            // Get token URI to find the contract ID
+            const nftResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
 
-            // Convert to proper format using JSON
-            const contractData = JSON.parse(JSON.stringify(contractInfo.result)) as ContractData;
+            expect(nftResult.result).toBeOk(expect.anything());
+            const contractId = utils.extractNumber(nftResult.result.value.value);
+            expect(contractId).toBeGreaterThan(0);
 
-            // Now verify the contract fields with the correct nested structure
-            expect(contractData).not.toBeNull();
+            // Take the position (which should be a short position)
+            const takeResult = utils.takePosition(wallet2, contractId);
 
-            // Verify the contract data exists with expected structure
-            expect(contractData.value.data).toBeDefined();
+            // Check if the result is OK (successful)
+            expect(takeResult.result).toBeOk(expect.anything());
 
-            // Verify critical fields with the correct structure
-            expect(contractData.value.data['status'].value).toBe('2'); // statusFilled
-            expect(contractData.value.data['long-id'].value).toBe('1'); // First position
-            expect(contractData.value.data['short-id'].value).toBe('2'); // Second position
-        });
+            // Get the taker's position ID
+            const takerPositionId = utils.getPositionId(takeResult);
+            expect(takerPositionId).toBeGreaterThan(0);
 
-        it('takes an open short position', () => {
-            // Create a short position
-            const createResult = setupOpenPosition(false);
-            // Extract contract ID number from the result
-            const contractId = extractNumberFromResult(createResult.result);
+            // Get contract details
+            const contract = utils.getContract(contractId);
 
-            // Take the position (should be a long position)
-            const takeResult = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId)
-            ], wallet2);
+            // Verify contract details
+            expect(contract).not.toBeNull();
+            expect(contract?.status).toBe(STATUS_FILLED);
+            expect(contract?.['long-id']).toBe(creatorPositionId);
+            expect(contract?.['short-id']).toBe(takerPositionId);
 
-            // Verify taking was successful and returned position ID
-            expect(takeResult.result).toBeOk(Cl.uint(2)); // Second position ID
-
-            // Verify contract status was updated
-            const contractInfo = simnet.callReadOnlyFn('bitforward', 'get-contract', [
-                Cl.uint(contractId)
-            ], deployer);
-
-            // Convert to proper format using JSON
-            const contractData = JSON.parse(JSON.stringify(contractInfo.result)) as ContractData;
-
-            // Now verify the contract fields with the correct nested structure
-            expect(contractData).not.toBeNull();
-
-            // Verify the contract data exists with expected structure
-            expect(contractData.value.data).toBeDefined();
-
-            // Verify critical fields with the correct structure
-            expect(contractData.value.data['status'].value).toBe('2'); // statusFilled
-            expect(contractData.value.data['long-id'].value).toBe('2'); // Second position
-            expect(contractData.value.data['short-id'].value).toBe('1'); // First position
-        });
-
-        it('rejects taking a non-existent position', () => {
-            // Attempt to take a non-existent position
-            const nonExistentId = 999;
-            const takeResult = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(nonExistentId)
-            ], wallet2);
-
-            // Verify take failed with contract-not-found error
-            expect(takeResult.result).toBeErr(errContractNotFound);
-        });
-
-        it('rejects taking an already filled position', () => {
-            // Create a position
-            const createResult = setupOpenPosition(true);
-            // Extract contract ID number from the result
-            const contractId = extractNumberFromResult(createResult.result);
-
-            // Take the position once (succeeds)
-            simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId)
-            ], wallet2);
-
-            // Attempt to take it again
-            const takeAgainResult = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId)
-            ], wallet3);
-
-            // Verify second take failed with already-has-counterparty error
-            expect(takeAgainResult.result).toBeErr(errAlreadyHasCounterparty);
-        });
-
-        it('allows different users to take different positions', () => {
-            // Create first position (long)
-            const createResult1 = setupOpenPosition(true);
-            const contractId1 = extractNumberFromResult(createResult1.result);
-
-            // Create second position (short)
-            const createResult2 = setupOpenPosition(false);
-            const contractId2 = extractNumberFromResult(createResult2.result);
-
-            // Take first position with wallet2
-            const takeResult1 = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId1)
-            ], wallet2);
-
-            expect(takeResult1.result).toBeOk(Cl.uint(3)); // Position ID 3
-
-            // Take second position with wallet3
-            const takeResult2 = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId2)
-            ], wallet3);
-
-            expect(takeResult2.result).toBeOk(Cl.uint(4)); // Position ID 4
-
-            // Verify both contracts are filled
-            const contractInfo1 = simnet.callReadOnlyFn('bitforward', 'get-contract', [
-                Cl.uint(contractId1)
-            ], deployer);
-
-            const contractData1 = JSON.parse(JSON.stringify(contractInfo1.result)) as ContractData;
-            expect(contractData1).not.toBeNull();
-            expect(contractData1.value.data).toBeDefined();
-            expect(contractData1.value.data['status'].value).toBe('2'); // statusFilled
-
-            const contractInfo2 = simnet.callReadOnlyFn('bitforward', 'get-contract', [
-                Cl.uint(contractId2)
-            ], deployer);
-
-            const contractData2 = JSON.parse(JSON.stringify(contractInfo2.result)) as ContractData;
-            expect(contractData2).not.toBeNull();
-            expect(contractData2.value.data).toBeDefined();
-            expect(contractData2.value.data['status'].value).toBe('2'); // statusFilled
-        });
-
-        it('verifies NFT ownership is correctly assigned', () => {
-            // Create a long position
-            const createResult = setupOpenPosition(true);
-            const contractId = extractNumberFromResult(createResult.result);
-            const longPositionId = 1;
-
-            // Take the position with wallet2
-            const takeResult = simnet.callPublicFn('bitforward', 'take-position', [
-                Cl.uint(contractId)
-            ], wallet2);
-
-            const shortPositionId = extractNumberFromResult(takeResult.result);
-
-            // Verify NFT ownership of long position (wallet1)
-            const longOwnerResult = simnet.callReadOnlyFn('bitforward-nft', 'get-owner', [
-                Cl.uint(longPositionId)
-            ], deployer);
-
-            // Directly check if the owner is wallet1
+            // Verify NFT ownership
+            const longOwnerResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-owner',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
             expect(longOwnerResult.result).toBeOk(Cl.some(Cl.principal(wallet1)));
 
-            // Verify NFT ownership of short position (wallet2)
-            const shortOwnerResult = simnet.callReadOnlyFn('bitforward-nft', 'get-owner', [
-                Cl.uint(shortPositionId)
-            ], deployer);
-
-            // Directly check if the owner is wallet2
+            const shortOwnerResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-owner',
+                [Cl.uint(takerPositionId)],
+                deployer
+            );
             expect(shortOwnerResult.result).toBeOk(Cl.some(Cl.principal(wallet2)));
+        });
+
+        it('takes an open short position', async () => {
+            // Create a short position
+            const createResult = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                false, // Short position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
+
+            // Check if the result is OK (successful)
+            expect(createResult.result).toBeOk(expect.anything());
+
+            // Get the position ID from the result
+            const creatorPositionId = utils.getPositionId(createResult);
+            expect(creatorPositionId).toBeGreaterThan(0);
+
+            // Get token URI to find the contract ID
+            const nftResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
+
+            expect(nftResult.result).toBeOk(expect.anything());
+            const contractId = utils.extractNumber(nftResult.result.value.value);
+            expect(contractId).toBeGreaterThan(0);
+
+            // Take the position (which should be a long position)
+            const takeResult = utils.takePosition(wallet2, contractId);
+
+            // Check if the result is OK (successful)
+            expect(takeResult.result).toBeOk(expect.anything());
+
+            // Get the taker's position ID
+            const takerPositionId = utils.getPositionId(takeResult);
+            expect(takerPositionId).toBeGreaterThan(0);
+
+            // Get contract details
+            const contract = utils.getContract(contractId);
+
+            // Verify contract details
+            expect(contract).not.toBeNull();
+            expect(contract?.status).toBe(STATUS_FILLED);
+            expect(contract?.['long-id']).toBe(takerPositionId);
+            expect(contract?.['short-id']).toBe(creatorPositionId);
+
+            // Verify NFT ownership
+            const shortOwnerResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-owner',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
+            expect(shortOwnerResult.result).toBeOk(Cl.some(Cl.principal(wallet1)));
+
+            const longOwnerResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-owner',
+                [Cl.uint(takerPositionId)],
+                deployer
+            );
+            expect(longOwnerResult.result).toBeOk(Cl.some(Cl.principal(wallet2)));
+        });
+
+        it('takes positions with different leverage values', async () => {
+            // Create a position with high leverage
+            const longLeverage = 5;  // 5x
+            const shortLeverage = 2; // 2x
+
+            const createResult = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                true, // Long position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                longLeverage,
+                shortLeverage
+            );
+
+            // Check if the result is OK (successful)
+            expect(createResult.result).toBeOk(expect.anything());
+
+            // Get the position ID from the result
+            const creatorPositionId = utils.getPositionId(createResult);
+            expect(creatorPositionId).toBeGreaterThan(0);
+
+            // Get token URI to find the contract ID
+            const nftResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
+
+            expect(nftResult.result).toBeOk(expect.anything());
+            const contractId = utils.extractNumber(nftResult.result.value.value);
+            expect(contractId).toBeGreaterThan(0);
+
+            // Take the position
+            const takeResult = utils.takePosition(wallet2, contractId);
+
+            // Check if the result is OK (successful)
+            expect(takeResult.result).toBeOk(expect.anything());
+
+            // Get contract details
+            const contract = utils.getContract(contractId);
+
+            // Verify contract details
+            expect(contract).not.toBeNull();
+            expect(contract?.status).toBe(STATUS_FILLED);
+            expect(contract?.['long-leverage']).toBe(utils.scaleLeverage(longLeverage));
+            expect(contract?.['short-leverage']).toBe(utils.scaleLeverage(shortLeverage));
+        });
+
+        it('takes positions with different asset types', async () => {
+            // Test taking positions with each supported asset
+            const supportedAssets = ['USD', 'EUR', 'GBP'];
+
+            for (const asset of supportedAssets) {
+                // Set a price for this asset
+                await utils.setAssetPrice(asset, 10);
+
+                // Create a position with this asset
+                const createResult = utils.createPosition(
+                    wallet1,
+                    1, // 1 sBTC collateral
+                    true, // Long position
+                    asset, // Current asset being tested
+                    0.1, // 0.1 sBTC premium
+                    1,
+                    1
+                );
+
+                // Check if the result is OK (successful)
+                expect(createResult.result).toBeOk(expect.anything());
+
+                // Get the position ID from the result
+                const creatorPositionId = utils.getPositionId(createResult);
+                expect(creatorPositionId).toBeGreaterThan(0);
+
+                // Get token URI to find the contract ID
+                const nftResult = simnet.callReadOnlyFn(
+                    'bitforward-nft',
+                    'get-token-uri',
+                    [Cl.uint(creatorPositionId)],
+                    deployer
+                );
+
+                expect(nftResult.result).toBeOk(expect.anything());
+                const contractId = utils.extractNumber(nftResult.result.value.value);
+                expect(contractId).toBeGreaterThan(0);
+
+                // Take the position
+                const takeResult = utils.takePosition(wallet2, contractId);
+
+                // Check if the result is OK (successful)
+                expect(takeResult.result).toBeOk(expect.anything());
+
+                // Get contract details
+                const contract = utils.getContract(contractId);
+
+                // Verify contract details
+                expect(contract).not.toBeNull();
+                expect(contract?.status).toBe(STATUS_FILLED);
+                expect(contract?.asset).toBe(asset);
+            }
+        });
+
+        it('allows positions to be taken by different users', async () => {
+            // Create first position (long)
+            const createResult1 = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                true, // Long position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
+
+            expect(createResult1.result).toBeOk(expect.anything());
+            const positionId1 = utils.getPositionId(createResult1);
+            const nftResult1 = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(positionId1)],
+                deployer
+            );
+            const contractId1 = utils.extractNumber(nftResult1.result.value.value);
+
+            // Create second position (short)
+            const createResult2 = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                false, // Short position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
+
+            expect(createResult2.result).toBeOk(expect.anything());
+            const positionId2 = utils.getPositionId(createResult2);
+            const nftResult2 = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(positionId2)],
+                deployer
+            );
+            const contractId2 = utils.extractNumber(nftResult2.result.value.value);
+
+            // Take first position with wallet2
+            const takeResult1 = utils.takePosition(wallet2, contractId1);
+            expect(takeResult1.result).toBeOk(expect.anything());
+
+            // Take second position with wallet3
+            const takeResult2 = utils.takePosition(wallet3, contractId2);
+            expect(takeResult2.result).toBeOk(expect.anything());
+
+            // Verify both contracts are filled with correct values
+            const contract1 = utils.getContract(contractId1);
+            expect(contract1).not.toBeNull();
+            expect(contract1?.status).toBe(STATUS_FILLED);
+
+            const contract2 = utils.getContract(contractId2);
+            expect(contract2).not.toBeNull();
+            expect(contract2?.status).toBe(STATUS_FILLED);
+        });
+
+        it('handles positions with negative premium', async () => {
+            // Create a position with negative premium (short paying long)
+            const createResult = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                true, // Long position
+                'USD',
+                -0.1, // -0.1 sBTC premium (negative - long pays short)
+                1,
+                1
+            );
+
+            // Check if the result is OK (successful)
+            expect(createResult.result).toBeOk(expect.anything());
+
+            // Get the position ID from the result
+            const creatorPositionId = utils.getPositionId(createResult);
+            expect(creatorPositionId).toBeGreaterThan(0);
+
+            // Get token URI to find the contract ID
+            const nftResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
+
+            expect(nftResult.result).toBeOk(expect.anything());
+            const contractId = utils.extractNumber(nftResult.result.value.value);
+            expect(contractId).toBeGreaterThan(0);
+
+            // Take the position
+            const takeResult = utils.takePosition(wallet2, contractId);
+
+            // Check if the result is OK (successful)
+            expect(takeResult.result).toBeOk(expect.anything());
+
+            // Get contract details
+            const contract = utils.getContract(contractId);
+
+            // Verify contract details
+            expect(contract).not.toBeNull();
+            expect(contract?.status).toBe(STATUS_FILLED);
+            // For negative premiums, verify the premium is negative
+            expect(contract?.premium).toBeLessThan(0);
+        });
+
+        it('takes a position with large collateral amount', async () => {
+            // Create a position with larger collateral but within wallet limits
+            const collateralAmount = 5; // 5 sBTC
+
+            const createResult = utils.createPosition(
+                wallet1,
+                collateralAmount,
+                true, // Long position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
+
+            // Check if the result is OK (successful)
+            expect(createResult.result).toBeOk(expect.anything());
+
+            // Get the position ID from the result
+            const creatorPositionId = utils.getPositionId(createResult);
+            expect(creatorPositionId).toBeGreaterThan(0);
+
+            // Get token URI to find the contract ID
+            const nftResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
+
+            expect(nftResult.result).toBeOk(expect.anything());
+            const contractId = utils.extractNumber(nftResult.result.value.value);
+            expect(contractId).toBeGreaterThan(0);
+
+            // Take the position
+            const takeResult = utils.takePosition(wallet2, contractId);
+
+            // Check if the result is OK (successful)
+            expect(takeResult.result).toBeOk(expect.anything());
+
+            // Get contract details
+            const contract = utils.getContract(contractId);
+
+            // Verify contract details
+            expect(contract).not.toBeNull();
+            expect(contract?.status).toBe(STATUS_FILLED);
+            expect(contract?.['collateral-amount']).toBe(utils.scaleAmount(collateralAmount));
+        });
+    });
+
+    describe('take-position error cases', () => {
+        it('rejects taking non-existent contracts', async () => {
+            // Attempt to take a non-existent contract
+            const nonExistentId = 999;
+            const takeResult = utils.takePosition(wallet2, nonExistentId);
+
+            // Verify it returns CONTRACT_NOT_FOUND error
+            expect(takeResult.result).toBeErr(Cl.uint(ERRORS.CONTRACT_NOT_FOUND));
+
+            // Get and verify error message
+            const errorCode = utils.getErrorCode(takeResult);
+            if (errorCode !== null) {
+                const errorMessage = utils.getErrorMessage(errorCode);
+                expect(errorMessage).toBe("Contract not found");
+            }
+        });
+
+        it('rejects taking an already filled position', async () => {
+            // Create a long position
+            const createResult = utils.createPosition(
+                wallet1,
+                1, // 1 sBTC collateral
+                true, // Long position
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
+
+            // Get the position ID from the result
+            const creatorPositionId = utils.getPositionId(createResult);
+            const nftResult = simnet.callReadOnlyFn(
+                'bitforward-nft',
+                'get-token-uri',
+                [Cl.uint(creatorPositionId)],
+                deployer
+            );
+            const contractId = utils.extractNumber(nftResult.result.value.value);
+
+            // Take the position first time (should succeed)
+            const takeResult1 = utils.takePosition(wallet2, contractId);
+            expect(takeResult1.result).toBeOk(expect.anything());
+
+            // Try to take the position again (should fail)
+            const takeResult2 = utils.takePosition(wallet3, contractId);
+
+            // Verify it returns ALREADY_HAS_COUNTERPARTY error
+            expect(takeResult2.result).toBeErr(Cl.uint(ERRORS.ALREADY_HAS_COUNTERPARTY));
+
+            // Get and verify error message
+            const errorCode = utils.getErrorCode(takeResult2);
+            if (errorCode !== null) {
+                const errorMessage = utils.getErrorMessage(errorCode);
+                expect(errorMessage).toBe("Already has counterparty");
+            }
+        });
+
+        it('handles contract that already has a counterparty', async () => {
+            // Setup a filled position with the createAndTakePosition utility
+            const result = utils.createAndTakePosition(
+                wallet1,
+                wallet2,
+                1, // 1 sBTC collateral
+                true, // Creator is long
+                'USD',
+                0.1, // 0.1 sBTC premium
+                1,
+                1
+            );
+
+            expect(result.contractId).toBeGreaterThan(0);
+            expect(result.creatorPositionId).toBeGreaterThan(0);
+            expect(result.takerPositionId).toBeGreaterThan(0);
+
+            // Try to take the position again
+            const takeResult = utils.takePosition(wallet3, result.contractId);
+
+            // Verify it returns ALREADY_HAS_COUNTERPARTY error
+            expect(takeResult.result).toBeErr(Cl.uint(ERRORS.ALREADY_HAS_COUNTERPARTY));
         });
     });
 });
