@@ -116,4 +116,114 @@ export class BitForwardContract {
             throw error;
         }
     }
+
+
+    async createPosition(amount, closingBlock, isLong, asset, premium, longLeverage, shortLeverage, sender) {
+        const functionName = "create-position";
+        try {
+            const transaction = await makeContractCall({
+                contractAddress: this.contractAddress,
+                contractName: this.contractName,
+                functionName,
+                functionArgs: [
+                    uintCV(amount),
+                    uintCV(closingBlock),
+                    isLong ? trueCV() : falseCV(),
+                    stringAsciiCV(asset),
+                    intCV(premium),
+                    uintCV(longLeverage),
+                    uintCV(shortLeverage)
+                ],
+                senderAddress: sender,
+                network: this.network,
+                anchorMode: AnchorMode.ANY,
+                postConditionMode: PostConditionMode.Allow,
+                fee: 200n
+            });
+
+            const broadcastResponse = await broadcastTransaction({
+                transaction,
+                network: this.network,
+            });
+            return broadcastResponse;
+        } catch (error) {
+            console.error("Error creating position:", error);
+            throw error;
+        }
+    }
+
+    async takePosition(contractId, sender) {
+        const functionName = "take-position";
+        try {
+            const transaction = await makeContractCall({
+                contractAddress: this.contractAddress,
+                contractName: this.contractName,
+                functionName,
+                functionArgs: [uintCV(contractId)],
+                senderAddress: sender,
+                network: this.network,
+                anchorMode: AnchorMode.ANY,
+                postConditionMode: PostConditionMode.Allow,
+                fee: 200n
+            });
+
+            const broadcastResponse = await broadcastTransaction({
+                transaction,
+                network: this.network,
+            });
+            return broadcastResponse;
+        } catch (error) {
+            console.error("Error taking position:", error);
+            throw error;
+        }
+    }
+
+    async isContractStopped() {
+        const functionName = "get-is-stopped";
+        try {
+            const response = await fetchCallReadOnlyFunction({
+                contractAddress: this.contractAddress,
+                contractName: this.contractName,
+                functionName,
+                functionArgs: [],
+                validateWithAbi: true,
+                network: this.network,
+                senderAddress: CONTRACT_ADDRESS.split('.')[0],
+            });
+            return response.value;
+        } catch (error) {
+            console.error("Error checking if contract is stopped:", error);
+            throw error;
+        }
+    }
+
+    async stopContract() {
+        if (!CONTRACT_OWNER_KEY) {
+            throw new Error("Contract owner private key not configured");
+        }
+
+        const functionName = "stop-contract";
+        try {
+            const transaction = await makeContractCall({
+                contractAddress: this.contractAddress,
+                contractName: this.contractName,
+                functionName,
+                functionArgs: [],
+                validateWithAbi: true,
+                senderKey: CONTRACT_OWNER_KEY,
+                network: this.network,
+                anchorMode: AnchorMode.ANY,
+                fee: 200n
+            });
+
+            const broadcastResponse = await broadcastTransaction({
+                transaction,
+                network: this.network,
+            });
+            return broadcastResponse;
+        } catch (error) {
+            console.error("Error stopping contract:", error);
+            throw error;
+        }
+    }
 }

@@ -130,6 +130,36 @@ export function createRoutes(storage, contract) {
         }
     });
 
+    router.post("/position/create", async (req, res) => {
+        try {
+            const { amount, closingBlock, isLong, asset, premium, longLeverage, shortLeverage, sender } = req.body;
+            
+            if (!amount || !closingBlock || isLong === undefined || !asset || !premium || !longLeverage || !shortLeverage || !sender) {
+                return res.status(400).json({ error: "Missing required parameters" });
+            }
+
+            const result = await contract.createPosition(
+                amount, 
+                closingBlock, 
+                isLong, 
+                asset, 
+                premium,
+                longLeverage,
+                shortLeverage,
+                sender
+            );
+            
+            res.json({ txId: result });
+        } catch (error) {
+            console.error("Error:", error);
+            res.status(500).json({ 
+                error: error.message,
+                details: "Failed to create position"
+            });
+        }
+    });
+
+
     router.post("/position/match", async (req, res) => {
         try {
             const { address, matchedAddress } = req.body;
@@ -209,6 +239,21 @@ export function createRoutes(storage, contract) {
             res.status(500).json({ error: error.message });
         }
     });
+
+    router.get("/contract/status", async (req, res) => {
+        try {
+            const isStopped = await contract.isContractStopped();
+            res.json({ stopped: isStopped });
+        } catch (error) {
+            console.error("Error:", error);
+            res.status(500).json({ 
+                error: error.message,
+                details: "Failed to check contract status"
+            });
+        }
+    });
+
+
 
     return router;
 }
