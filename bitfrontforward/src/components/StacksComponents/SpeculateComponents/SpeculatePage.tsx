@@ -3,8 +3,9 @@ import { Dropdown } from "./Dropdown";
 import { AmountInput } from "./AmountInput";
 import { ExpirySelector } from "./ExpirySelector";
 import { LeverageSlider } from "./LeverageSlider";
-import { AssetType, PremiumType } from "./types";
+import { AssetType } from "./types";
 import { useStacks } from "../../../context/StacksContext";
+<<<<<<< HEAD
 import { openContractCall } from "@stacks/connect";
 import {
   uintCV,
@@ -15,6 +16,9 @@ import {
   FungibleConditionCode,
 } from "@stacks/transactions";
 import { getCurrentBlock } from "../../../utils/stacksUtils";
+=======
+import { getBurnBlockHeight, createPosition } from "../../../utils/stacksUtils";
+>>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
 
 const SpeculatePage: React.FC = () => {
   const { stacksUser, stacksNetwork, prices } = useStacks();
@@ -23,7 +27,7 @@ const SpeculatePage: React.FC = () => {
   );
 
   // State for burn block height
-  const [currentBlockHeight, setCurrentBlockHeight] = useState<number>(0);
+  const [burnBlockHeight, setBurnBlockHeight] = useState<number>(0);
 
   // Direction selection
   const [isLong, setIsLong] = useState<boolean>(true);
@@ -55,7 +59,7 @@ const SpeculatePage: React.FC = () => {
   const [leverage, setLeverage] = useState(1.2);
   const [counterpartyLeverage, setCounterpartyLeverage] = useState(1.2);
 
-  // Add state for transaction
+  // Transaction state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successTxId, setSuccessTxId] = useState<string | null>(null);
@@ -152,23 +156,24 @@ const SpeculatePage: React.FC = () => {
     }
   }, [premiumAssetAmount, assetAmount, prices]);
 
-  // Fetch current block height
+  // Fetch current burn block height
   useEffect(() => {
-    const fetchBlockHeight = async () => {
+    const fetchBurnBlockHeight = async () => {
       try {
-        const blockHeight = await getCurrentBlock();
-        setCurrentBlockHeight(blockHeight);
+        const height = await getBurnBlockHeight();
+        setBurnBlockHeight(height);
+        console.log("Current burn block height:", height);
       } catch (err) {
-        console.error("Failed to fetch current block height:", err);
+        console.error("Failed to fetch burn block height:", err);
         // Default fallback value
-        setCurrentBlockHeight(12345);
+        setBurnBlockHeight(12345);
       }
     };
 
-    fetchBlockHeight();
+    fetchBurnBlockHeight();
 
-    // Refresh block height every minute
-    const interval = setInterval(fetchBlockHeight, 60000);
+    // Refresh burn block height every minute
+    const interval = setInterval(fetchBurnBlockHeight, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -185,10 +190,24 @@ const SpeculatePage: React.FC = () => {
 
   // Calculate closing block height
   const calculateClosingBlock = (): number => {
-    // Estimate 10 minutes per block on average
+    // Estimate 10 minutes per block on average for Bitcoin
     const minutesTotal = days * 24 * 60 + hours * 60 + minutes;
     const blocksToAdd = Math.ceil(minutesTotal / 10);
-    return currentBlockHeight + blocksToAdd;
+    return burnBlockHeight + blocksToAdd;
+  };
+
+  // Reset the form after successful position creation
+  const resetForm = () => {
+    setBtcAmount("");
+    setAssetAmount("");
+    setPremiumPercentage("");
+    setPremiumBtcAmount("");
+    setPremiumAssetAmount("");
+    setDays(0);
+    setHours(0);
+    setMinutes(0);
+    setLeverage(1.2);
+    setCounterpartyLeverage(1.2);
   };
 
   // Handle position creation
@@ -230,6 +249,7 @@ const SpeculatePage: React.FC = () => {
       // Calculate closing block
       const closingBlock = calculateClosingBlock();
 
+<<<<<<< HEAD
       // Create post conditions to ensure user has enough BTC
       const postConditions = [
         makeStandardSTXPostCondition(
@@ -255,23 +275,39 @@ const SpeculatePage: React.FC = () => {
         ],
         network: stacksNetwork,
         postConditions,
+=======
+      // Get sender address from wallet for post-conditions
+      const senderAddress = stacksUser.profile.stxAddress.testnet;
+
+      console.log("Creating position with parameters:", {
+        senderAddress,
+        amount: amountMicroBTC,
+        closingBlock,
+        isLong,
+        asset: assetCode,
+        premium: premiumMicroBTC,
+        longLeverage: longLeverageValue,
+        shortLeverage: shortLeverageValue
+      });
+
+      // Use createPosition with proper post-conditions
+      await createPosition(stacksNetwork, {
+        amount: amountMicroBTC,
+        closingBlock,
+        isLong,
+        asset: assetCode,
+        premium: premiumMicroBTC,
+        longLeverage: longLeverageValue,
+        shortLeverage: shortLeverageValue,
+        senderAddress, // Pass sender address for post-conditions
+>>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
         onFinish: (data) => {
           console.log("Position created successfully", data);
           setSuccessTxId(data.txId);
           setIsSubmitting(false);
-
-          // Reset form
-          setBtcAmount("");
-          setAssetAmount("");
-          setPremiumPercentage("");
-          setPremiumBtcAmount("");
-          setPremiumAssetAmount("");
-          setDays(0);
-          setHours(0);
-          setMinutes(0);
-          setLeverage(1.2);
-          setCounterpartyLeverage(1.2);
+          resetForm();
         },
+<<<<<<< HEAD
         onCancel: () => {
           setError("Transaction was canceled");
           setIsSubmitting(false);
@@ -279,6 +315,14 @@ const SpeculatePage: React.FC = () => {
       };
 
       await openContractCall(options);
+=======
+        onCancel: (error) => {
+          console.error('Transaction canceled or failed:', error);
+          setError(`Transaction failed: ${error?.message || 'Unknown error'}`);
+          setIsSubmitting(false);
+        }
+      });
+>>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
     } catch (err: any) {
       console.error("Error creating position:", err);
       setError(`Failed to create position: ${err.message}`);
@@ -286,6 +330,7 @@ const SpeculatePage: React.FC = () => {
     }
   };
 
+  // Update countdown timer
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date().toLocaleTimeString());
@@ -536,6 +581,21 @@ const SpeculatePage: React.FC = () => {
                       {String(blockCountdown % 60).padStart(2, "0")})
                     </p>
                   </div>
+<<<<<<< HEAD
+=======
+
+                  <div className="text-gray-500">Your Leverage:</div>
+                  <div>{leverage.toFixed(1)}x</div>
+
+                  <div className="text-gray-500">Counterparty Leverage:</div>
+                  <div>{counterpartyLeverage.toFixed(1)}x</div>
+
+                  <div className="text-gray-500">Current Bitcoin Block:</div>
+                  <div>{burnBlockHeight}</div>
+
+                  <div className="text-gray-500">Expiry Block:</div>
+                  <div>#{calculateClosingBlock()} (in approx. {days}d {hours}h {minutes}m)</div>
+>>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
                 </div>
               </div>
             </div>
