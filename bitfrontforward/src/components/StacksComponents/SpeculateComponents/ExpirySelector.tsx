@@ -97,8 +97,18 @@ export const ExpirySelector: React.FC<ExpirySelectorProps> = ({
       <div className="flex justify-between items-center mb-2.5">
         <h2>Expires (EDT)</h2>
         <div className="text-sm text-neutral-400">
-          <span>TIME REMAINING: </span>
-          <span>{timeRemaining}</span>
+          <span>BLOCK REMAINING: </span>
+          <span>
+            {Math.max(
+              1,
+              Math.ceil((days * 24 * 60 + hours * 60 + minutes) / 10),
+            )}{" "}
+            block (
+            {timeRemaining.includes("blocks")
+              ? timeRemaining.split("(")[1].split(")")[0]
+              : "10:00"}
+            )
+          </span>
         </div>
       </div>
 

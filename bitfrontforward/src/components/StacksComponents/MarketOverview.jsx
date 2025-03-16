@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCurrentPrice, fetchCurrentPremium, getCurrentBlock } from '../../utils/stacksUtils';
 
 const MarketOverview = () => {
   const [marketData, setMarketData] = useState({

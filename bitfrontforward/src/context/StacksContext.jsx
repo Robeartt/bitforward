@@ -23,12 +23,8 @@ export function StacksProvider({ children }) {
       setStacksUser(userSession.loadUserData());
     }
 
-    console.log('Fetching prices...');
-
     // Fetch initial prices
     fetchPrices();
-
-    console.log('Setting up price interval...');
 
     // Set up interval to fetch prices every 30 seconds
     const priceInterval = setInterval(fetchPrices, 30000);
@@ -42,10 +38,7 @@ export function StacksProvider({ children }) {
       const assets = ['USD', 'EUR', 'GBP'];
       const newPrices = {};
 
-      console.log('Fetching prices for assets:', assets);
-
       for (const asset of assets) {
-        console.log('Fetching price for asset:', asset);
         const priceResponse = await callReadOnlyFunction({
           contractAddress: "ST1QBZR0Z3BMY6TCEQ8KABEK000HKGVW0XBTK3X9A",
           contractName: "bitforward-oracle",
@@ -54,7 +47,6 @@ export function StacksProvider({ children }) {
           network: 'testnet',
           senderAddress: 'ST1QBZR0Z3BMY6TCEQ8KABEK000HKGVW0XBTK3X9A',
         });
-        console.log(priceResponse);
 
         const priceData = cvToJSON(priceResponse);
 

@@ -6,12 +6,10 @@ const PriceDisplay: React.FC = () => {
       <div className="text-white max-md:flex-[1_1_calc(50%_-_10px)] max-sm:w-full">
         <div className="mb-1.5 text-sm text-neutral-400">BTC/USD</div>
         <div className="mb-1.5 text-base font-semibold">$65,246.82</div>
-        <div className="text-sm text-green-500">+2.6%</div>
       </div>
       <div className="text-white max-md:flex-[1_1_calc(50%_-_10px)] max-sm:w-full">
-        <div className="mb-1.5 text-sm text-neutral-400">ETH/USD</div>
-        <div className="mb-1.5 text-base font-semibold">$3,128.65</div>
-        <div className="text-sm text-red-600">-0.8%</div>
+        <div className="mb-1.5 text-sm text-neutral-400">BTC/EURO</div>
+        <div className="mb-1.5 text-base font-semibold">€60,128.45</div>
       </div>
       <div className="text-white max-md:flex-[1_1_calc(50%_-_10px)] max-sm:w-full">
         <div className="mb-1.5 text-sm text-neutral-400">EUR/USD</div>
