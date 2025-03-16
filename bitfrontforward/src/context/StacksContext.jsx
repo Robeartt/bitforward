@@ -95,6 +95,8 @@ export function StacksProvider({ children }) {
       // Get user's NFTs
       const nfts = await getUserNFTs(userAddress);
 
+      console.log('Fetched user NFTs:', nfts);
+
       // Create a new positions map
       const newPositionsMap = new Map();
 

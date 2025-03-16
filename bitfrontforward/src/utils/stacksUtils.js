@@ -359,11 +359,15 @@ export const getUserNFTs = async (userAddress) => {
 
         const response = await fetch(`${apiUrl}?${params.toString()}`);
 
+        console.log("getUserNFTs response:", response);
+
         if (!response.ok) {
             throw new Error(`API request failed with status ${response.status}`);
         }
 
         const data = await response.json();
+
+        console.log("getUserNFTs data:", data);
 
         // Map to our required format
         const userNFTs = await Promise.all(

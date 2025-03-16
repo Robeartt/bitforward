@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStacks } from '../../context/StacksContext';
 import { ArrowLeftRight } from 'lucide-react';
-import { getPositions } from '../../utils/backendUtils';
+import { getPositions, removePosition } from '../../utils/backendUtils';
 import { getContract, takePosition } from '../../utils/stacksUtils';
 
 const PositionManagement = () => {
@@ -22,6 +22,7 @@ const PositionManagement = () => {
 
       // Fetch positions from backend
       const backendPositions = await getPositions();
+      const positionsToRemove = [];
 
       // Enhance positions with contract details
       const enhancedPositions = await Promise.all(
@@ -32,6 +33,14 @@ const PositionManagement = () => {
 
             if (!contractDetails) {
               // Skip positions without valid contract details
+              positionsToRemove.push(position.contractId);
+              return null;
+            }
+
+            // Check if position is no longer open (status !== 1)
+            if (contractDetails.status !== 1) {
+              positionsToRemove.push(position.contractId);
+              console.log(`Position ${position.contractId} is no longer open (status: ${contractDetails.status}), marking for removal`);
               return null;
             }
 
@@ -46,7 +55,22 @@ const PositionManagement = () => {
         })
       );
 
-      // Filter out null values (positions that couldn't be enhanced)
+      // Remove positions that are no longer open or invalid
+      if (positionsToRemove.length > 0) {
+        console.log(`Removing ${positionsToRemove.length} positions that are no longer open or invalid`);
+        await Promise.all(
+          positionsToRemove.map(async (contractId) => {
+            try {
+              await removePosition(contractId);
+              console.log(`Successfully removed position ${contractId} from backend`);
+            } catch (err) {
+              console.error(`Failed to remove position ${contractId} from backend:`, err);
+            }
+          })
+        );
+      }
+
+      // Filter out null values (positions that couldn't be enhanced or are no longer open)
       const validPositions = enhancedPositions.filter(p => p !== null);
 
       setPositions(validPositions);
@@ -220,8 +244,8 @@ const PositionManagement = () => {
                       <button
                         onClick={() => handleMatchPosition(position)}
                         className={`px-3 py-1 rounded-lg text-sm transition-colors ${stacksUser && !isSubmitting && contract.status === 1
-                          ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-                          : 'bg-gray-600 cursor-not-allowed opacity-50'
+                            ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                            : 'bg-gray-600 cursor-not-allowed opacity-50'
                           }`}
                         disabled={!stacksUser || isSubmitting || matchingPosition !== null || contract.status !== 1}
                       >
