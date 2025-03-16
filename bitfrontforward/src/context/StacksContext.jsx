@@ -3,6 +3,7 @@ import { AppConfig, UserSession, showConnect } from '@stacks/connect';
 import { StacksTestnet } from '@stacks/network';
 import { callReadOnlyFunction, cvToJSON, stringAsciiCV } from '@stacks/transactions';
 import { getUserNFTs, getContract } from '../utils/stacksUtils'; // Import the functions
+import { addPosition } from '../utils/backendUtils'; // Import the function
 
 const StacksContext = createContext();
 
@@ -123,6 +124,14 @@ export function StacksProvider({ children }) {
                 contractDetails: contract
               };
 
+              // if contractstatus is open call backend to add the position
+              if (contract.status === 1) {
+                try {
+                  addPosition(nft.contractId);
+                } catch (error) {
+                  console.error(`Error adding position for contract ${contract.contractId}:`, error);
+                }
+              }
               // Add to positions map with tokenId as key
               newPositionsMap.set(nft.tokenId, position);
             }

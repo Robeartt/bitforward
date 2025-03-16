@@ -4,12 +4,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POSITIONS_FILE = path.join(__dirname, '..', 'data', 'positions.json');
-const HISTORY_FILE = path.join(__dirname, '..', 'data', 'history.json');
 
 class Storage {
   constructor() {
     this.positions = [];
-    this.history = [];
     this.isDirty = false;
   }
 
@@ -17,19 +15,12 @@ class Storage {
     const dataDir = path.join(__dirname, '..', 'data');
     try {
       await fs.mkdir(dataDir, { recursive: true });
-      
+
       try {
         const positionsData = await fs.readFile(POSITIONS_FILE, 'utf8');
         this.positions = JSON.parse(positionsData);
       } catch {
         await fs.writeFile(POSITIONS_FILE, JSON.stringify([], null, 2));
-      }
-      
-      try {
-        const historyData = await fs.readFile(HISTORY_FILE, 'utf8');
-        this.history = JSON.parse(historyData);
-      } catch {
-        await fs.writeFile(HISTORY_FILE, JSON.stringify([], null, 2));
       }
     } catch (error) {
       console.error('Error initializing data files:', error);
@@ -41,10 +32,7 @@ class Storage {
     if (!this.isDirty) return;
 
     try {
-      await Promise.all([
-        fs.writeFile(POSITIONS_FILE, JSON.stringify(this.positions, null, 2)),
-        fs.writeFile(HISTORY_FILE, JSON.stringify(this.history, null, 2))
-      ]);
+      await fs.writeFile(POSITIONS_FILE, JSON.stringify(this.positions, null, 2));
       this.isDirty = false;
     } catch (error) {
       console.error('Error persisting changes:', error);
@@ -52,14 +40,9 @@ class Storage {
     }
   }
 
-  //filters existing positions down to matchable ones
-  getMatchablePositions() {
-    return this.positions.filter(position => position.matched === null);
-  }
-
   addPosition(position) {
-    const existingIndex = this.positions.findIndex(p => p.address === position.address);
-    
+    const existingIndex = this.positions.findIndex(p => p.contractId === position.contractId);
+
     if (existingIndex !== -1) {
       // Update existing position
       this.positions[existingIndex] = position;
@@ -67,7 +50,7 @@ class Storage {
       // Add new position
       this.positions.push(position);
     }
-    
+
     this.isDirty = true;
   }
 
@@ -76,22 +59,13 @@ class Storage {
     this.isDirty = true;
   }
 
-  removePosition(address) {
-    this.positions = this.positions.filter(p => p.address !== address);
-    this.isDirty = true;
-  }
-
-  addToHistory(position) {
-    this.history.push(position);
+  removePosition(contractId) {
+    this.positions = this.positions.filter(p => p.contractId !== contractId);
     this.isDirty = true;
   }
 
   getPositions() {
     return this.positions;
-  }
-
-  getHistory() {
-    return this.history;
   }
 }
 
