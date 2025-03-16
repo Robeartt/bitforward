@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from "react";
+import { AlertCircle, CheckCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const PositionDashboard = () => {
+  // Position status mapping
+  const statusMap = new Map([
+    ["open", { label: "Open", color: "text-green-500" }],
+    ["closed", { label: "Closed", color: "text-gray-500" }],
+    ["liquidated", { label: "Liquidated", color: "text-red-500" }],
+    ["matched", { label: "Matched", color: "text-blue-500" }],
+  ]);
+
   const [positions, setPositions] = useState([]);
   const [history, setHistory] = useState([]);
-  const [address, setAddress] = useState('');
-  const [price, setPrice] = useState('');
+  const [address, setAddress] = useState("");
+  const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -20,21 +28,21 @@ const PositionDashboard = () => {
 
   const fetchPositions = async () => {
     try {
-      const response = await fetch('/api/positions');
+      const response = await fetch("/api/positions");
       const data = await response.json();
       setPositions(data);
     } catch (err) {
-      setError('Failed to fetch positions');
+      setError("Failed to fetch positions");
     }
   };
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch('/api/positions/history');
+      const response = await fetch("/api/positions/history");
       const data = await response.json();
       setHistory(data);
     } catch (err) {
-      setError('Failed to fetch position history');
+      setError("Failed to fetch position history");
     }
   };
 
@@ -45,10 +53,10 @@ const PositionDashboard = () => {
     setSuccess(null);
 
     try {
-      const response = await fetch('/api/position/new', {
-        method: 'POST',
+      const response = await fetch("/api/position/new", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ address }),
       });
@@ -56,11 +64,11 @@ const PositionDashboard = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create position');
+        throw new Error(data.error || "Failed to create position");
       }
 
-      setSuccess('Position created successfully');
-      setAddress('');
+      setSuccess("Position created successfully");
+      setAddress("");
       fetchPositions();
       fetchHistory();
     } catch (err) {
@@ -77,10 +85,10 @@ const PositionDashboard = () => {
     setSuccess(null);
 
     try {
-      const response = await fetch('/api/price', {
-        method: 'POST',
+      const response = await fetch("/api/price", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ price: Number(price) }),
       });
@@ -88,11 +96,11 @@ const PositionDashboard = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to set price');
+        throw new Error(data.error || "Failed to set price");
       }
 
       setSuccess(`Price set successfully. Transaction ID: ${data.txId}`);
-      setPrice('');
+      setPrice("");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -109,12 +117,14 @@ const PositionDashboard = () => {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      
+
       {success && (
         <Alert variant="default" className="bg-green-50 border-green-200">
           <CheckCircle className="h-4 w-4 text-green-600" />
           <AlertTitle className="text-green-800">Success</AlertTitle>
-          <AlertDescription className="text-green-700">{success}</AlertDescription>
+          <AlertDescription className="text-green-700">
+            {success}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -139,7 +149,7 @@ const PositionDashboard = () => {
               disabled={loading}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
             >
-              {loading ? 'Creating...' : 'Create Position'}
+              {loading ? "Creating..." : "Create Position"}
             </button>
           </form>
         </CardContent>
@@ -166,7 +176,7 @@ const PositionDashboard = () => {
               disabled={loading}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
             >
-              {loading ? 'Setting price...' : 'Set Price'}
+              {loading ? "Setting price..." : "Set Price"}
             </button>
           </form>
         </CardContent>
@@ -193,7 +203,15 @@ const PositionDashboard = () => {
                   <tr key={index} className="border-b">
                     <td className="p-2">{position.address}</td>
                     <td className="p-2">{position.amount}</td>
-                    <td className="p-2">{position.long ? 'Yes' : 'No'}</td>
+                    <td className="p-2">
+                      <span
+                        className={
+                          position.long ? "text-green-500" : "text-blue-500"
+                        }
+                      >
+                        {position.long ? "Yes" : "No"}
+                      </span>
+                    </td>
                     <td className="p-2">{position.openValue}</td>
                     <td className="p-2">{position.premium}</td>
                   </tr>
@@ -225,7 +243,16 @@ const PositionDashboard = () => {
                     <td className="p-2">{item.address}</td>
                     <td className="p-2">{item.openBlock}</td>
                     <td className="p-2">{item.closingBlock}</td>
-                    <td className="p-2">{item.matched ? 'Yes' : 'No'}</td>
+                    <td className="p-2">
+                      <span
+                        className={
+                          statusMap.get(item.matched ? "matched" : "closed")
+                            ?.color || "text-gray-500"
+                        }
+                      >
+                        {item.matched ? "Yes" : "No"}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
