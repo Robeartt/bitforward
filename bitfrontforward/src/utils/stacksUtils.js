@@ -49,7 +49,6 @@ export const getBurnBlockHeight = async () => {
         throw error;
     }
 };
-
 /**
  * Get contract details by ID
  * @param {number} contractId - Contract ID
@@ -95,77 +94,6 @@ export const getContract = async (contractId) => {
     } catch (error) {
         console.error("Error fetching contract:", error);
         throw error;
-    }
-};
-
-/**
- * Get all NFTs owned by a user from the bitforward-nft contract using the Stacks API
- * @param {string} userAddress - Stacks address of the user
- * @returns {Promise<Array<{tokenId: number, contractId: number}>>} Array of NFT tokens
- */
-export const getUserNFTs = async (userAddress) => {
-    try {
-        if (!userAddress) {
-            console.error("getUserNFTs: No user address provided");
-            return [];
-        }
-
-        // Format the asset identifier for the NFTs we want
-        const assetIdentifier = `${BITFORWARD_CONTRACT_ADDRESS}.${BITFORWARD_NFT_CONTRACT_NAME}::bitforward-contracts`;
-
-        // Query the Stacks API for NFTs owned by this address
-        const apiUrl = `${STACKS_API_BASE}/extended/v1/tokens/nft/holdings`;
-        const params = new URLSearchParams({
-            principal: userAddress,
-            asset_identifiers: assetIdentifier,
-            limit: 200, // Increase limit to get more tokens at once
-            offset: 0,
-            unanchored: false,
-            tx_metadata: false
-        });
-
-        const response = await fetch(`${apiUrl}?${params.toString()}`);
-
-        if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Map to our required format
-        const userNFTs = await Promise.all(
-            data.results.map(async (nft) => {
-                // Parse token ID from the 'repr' field
-                const tokenId = parseInt(nft.value.repr.replace('u', ''));
-
-                // Get contract ID from token URI
-                const uriResponse = await callReadOnlyFunction({
-                    contractAddress: BITFORWARD_CONTRACT_ADDRESS,
-                    contractName: BITFORWARD_NFT_CONTRACT_NAME,
-                    functionName: "get-token-uri",
-                    functionArgs: [uintCV(tokenId)],
-                    network: DEFAULT_NETWORK,
-                    senderAddress: BITFORWARD_CONTRACT_ADDRESS
-                });
-
-                // Use cvToJSON to parse the response
-                const uriData = cvToJSON(uriResponse);
-
-                // Based on the provided structure, extract the contract ID
-                // The path to the value is value.value.value
-                const contractId = parseInt(uriData.value.value.value);
-
-                return {
-                    tokenId,
-                    contractId
-                };
-            })
-        );
-
-        return userNFTs;
-    } catch (error) {
-        console.error("Error fetching user NFTs:", error);
-        return [];
     }
 };
 
@@ -292,7 +220,7 @@ export const takePosition = async (stacksNetwork, options) => {
             ],
             network: stacksNetwork || DEFAULT_NETWORK,
             postConditions: [postCondition],
-            postConditionMode: PostConditionMode.Allow,
+            postConditionMode: PostConditionMode.ALLOW,
             onFinish,
             onCancel
         };
@@ -332,7 +260,7 @@ export const closeContract = async (stacksNetwork, options) => {
             ],
             network: stacksNetwork || DEFAULT_NETWORK,
             postConditions: [], // No post-conditions needed for closing
-            postConditionMode: PostConditionMode.Allow,
+            postConditionMode: PostConditionMode.ALLOW,
             onFinish,
             onCancel
         };
@@ -400,5 +328,76 @@ export const getTokenOwner = async (tokenId) => {
     } catch (error) {
         console.error("Error fetching token owner:", error);
         throw error;
+    }
+};
+
+/**
+ * Get all NFTs owned by a user from the bitforward-nft contract using the Stacks API
+ * @param {string} userAddress - Stacks address of the user
+ * @returns {Promise<Array<{tokenId: number, contractId: number}>>} Array of NFT tokens
+ */
+export const getUserNFTs = async (userAddress) => {
+    try {
+        if (!userAddress) {
+            console.error("getUserNFTs: No user address provided");
+            return [];
+        }
+
+        // Format the asset identifier for the NFTs we want
+        const assetIdentifier = `${BITFORWARD_CONTRACT_ADDRESS}.${BITFORWARD_NFT_CONTRACT_NAME}::bitforward-contracts`;
+
+        // Query the Stacks API for NFTs owned by this address
+        const apiUrl = `${STACKS_API_BASE}/extended/v1/tokens/nft/holdings`;
+        const params = new URLSearchParams({
+            principal: userAddress,
+            asset_identifiers: assetIdentifier,
+            limit: 200, // Increase limit to get more tokens at once
+            offset: 0,
+            unanchored: false,
+            tx_metadata: false
+        });
+
+        const response = await fetch(`${apiUrl}?${params.toString()}`);
+
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Map to our required format
+        const userNFTs = await Promise.all(
+            data.results.map(async (nft) => {
+                // Parse token ID from the 'repr' field
+                const tokenId = parseInt(nft.value.repr.replace('u', ''));
+
+                // Get contract ID from token URI
+                const uriResponse = await callReadOnlyFunction({
+                    contractAddress: BITFORWARD_CONTRACT_ADDRESS,
+                    contractName: BITFORWARD_NFT_CONTRACT_NAME,
+                    functionName: "get-token-uri",
+                    functionArgs: [uintCV(tokenId)],
+                    network: DEFAULT_NETWORK,
+                    senderAddress: BITFORWARD_CONTRACT_ADDRESS
+                });
+
+                // Use cvToJSON to parse the response
+                const uriData = cvToJSON(uriResponse);
+
+                // Based on the provided structure, extract the contract ID
+                // The path to the value is value.value.value
+                const contractId = parseInt(uriData.value.value.value);
+
+                return {
+                    tokenId,
+                    contractId
+                };
+            })
+        );
+
+        return userNFTs;
+    } catch (error) {
+        console.error("Error fetching user NFTs:", error);
+        return [];
     }
 };

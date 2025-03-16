@@ -132,6 +132,8 @@ export function StacksProvider({ children }) {
         })
       );
 
+      console.log('Fetched user positions:', newPositionsMap);
+
       setPositionsMap(newPositionsMap);
     } catch (error) {
       console.error("Error fetching user positions:", error);

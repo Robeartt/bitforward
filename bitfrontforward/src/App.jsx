@@ -69,7 +69,7 @@ function Navigation() {
 
 // Current Price display component
 function CurrentPrice() {
-  const { prices } = useStacks();
+  const { prices, } = useStacks();
 
   // Format the USD price with commas for thousands and 2 decimal places
   const formattedPrice = prices.USD.toLocaleString(undefined, {
@@ -111,7 +111,7 @@ function AppContent() {
             <span className="text-orange-500 logo-text">Bit</span>
             <span className="text-slate-50 logo-text">Forward</span>
           </Link>
-          {}
+          { }
           <div className="object-contain ml-0 h-[30px] w-[30px] max-sm:w-6 max-sm:h-6"></div>
         </div>
         <Navigation />
