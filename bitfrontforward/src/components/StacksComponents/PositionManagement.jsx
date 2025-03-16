@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAllPositions, formatSTX } from '../../utils/stacksUtils';
 import { useStacks } from '../../context/StacksContext';
 import { openContractCall } from '@stacks/connect';
 import { makeStandardSTXPostCondition, FungibleConditionCode } from '@stacks/transactions';
@@ -82,16 +81,16 @@ const PositionManagement = () => {
         postConditions,
         onFinish: async ({ txId }) => {
           console.log('Match Transaction:', txId);
-          
+
           try {
             const response = await fetch('http://localhost:3001/api/position/match', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ 
+              body: JSON.stringify({
                 address: stacksUser.profile.stxAddress.testnet,
-                matchedAddress: owner 
+                matchedAddress: owner
               }),
             });
 
@@ -194,9 +193,8 @@ const PositionManagement = () => {
                 {positions.length > 0 ? positions.map((position, index) => (
                   <tr key={index} className="border-t border-gray-800 hover:bg-gray-800/50">
                     <td className="p-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        position.type === 'Long' ? 'bg-green-600' : 'bg-blue-600'
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-xs ${position.type === 'Long' ? 'bg-green-600' : 'bg-blue-600'
+                        }`}>
                         {position.type}
                       </span>
                     </td>
@@ -222,11 +220,10 @@ const PositionManagement = () => {
                     <td className="p-2">
                       <button
                         onClick={() => handleMatchPosition(position.owner)}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                          stacksUser && !isSubmitting
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${stacksUser && !isSubmitting
                             ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
                             : 'bg-gray-600 cursor-not-allowed opacity-50'
-                        }`}
+                          }`}
                         disabled={!stacksUser || isSubmitting}
                       >
                         {isSubmitting ? 'Matching...' : 'Match'}

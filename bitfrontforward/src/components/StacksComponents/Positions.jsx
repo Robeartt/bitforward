@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useStacks } from '../../context/StacksContext';
-import { fetchCurrentPrice, formatSTX } from '../../utils/stacksUtils';
-import { fetchAllPositions, getCurrentBlock } from '../../utils/stacksUtils';
 import { LineChart } from 'lucide-react';
 
 const Positions = () => {
@@ -14,10 +12,10 @@ const Positions = () => {
   const calculatePnL = (position, currentPrice) => {
     const amount = position.amount / 1000000;
     const openValue = position.openValue / 1000000;
-    
+
     const initialPositionValue = amount;
     let currentPositionValue = amount * ((openValue / amount) / currentPrice);
-    
+
     let pnlPercentage = ((currentPositionValue - initialPositionValue) / initialPositionValue) * 100;
     if (position.long) {
       pnlPercentage *= -1;
@@ -142,7 +140,7 @@ const Positions = () => {
         <div className="p-4">
           <div className="bg-red-900/20 border border-red-900 text-red-500 p-4 rounded-lg">
             {error}
-            <button 
+            <button
               onClick={() => {
                 setError(null);
                 setLoading(true);
@@ -172,9 +170,8 @@ const Positions = () => {
                 {positions.length > 0 ? positions.map((position) => (
                   <tr key={position.id} className="border-t border-gray-800 hover:bg-gray-800/50">
                     <td className="p-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        position.type === 'Long' ? 'bg-green-600' : 'bg-blue-600'
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-xs ${position.type === 'Long' ? 'bg-green-600' : 'bg-blue-600'
+                        }`}>
                         {position.type}
                       </span>
                     </td>
@@ -203,9 +200,8 @@ const Positions = () => {
                     <td className="p-2 font-mono text-sm">
                       {position.matched?.slice(0, 8)}...{position.matched?.slice(-8)}
                     </td>
-                    <td className={`p-2 ${
-                      parseFloat(position.pnl) >= 0 ? 'text-green-500' : 'text-red-500'
-                    }`}>
+                    <td className={`p-2 ${parseFloat(position.pnl) >= 0 ? 'text-green-500' : 'text-red-500'
+                      }`}>
                       <div>{position.pnl}%</div>
                       <div className="text-sm">
                         {position.pnlValue}
