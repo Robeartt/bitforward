@@ -52,6 +52,11 @@ class Storage {
     }
   }
 
+  //filters existing positions down to matchable ones
+  getMatchablePositions() {
+    return this.positions.filter(position => position.matched === null);
+  }
+
   addPosition(position) {
     const existingIndex = this.positions.findIndex(p => p.address === position.address);
     
