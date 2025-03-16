@@ -490,7 +490,7 @@ const SpeculatePage: React.FC = () => {
               {/* Contract parameters summary */}
               <div className="p-4 bg-slate-900 rounded-lg mt-4">
                 <h3 className="text-sm text-neutral-400 mb-3">
-                  Position Summary
+                  Contract Parameters
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
@@ -525,8 +525,17 @@ const SpeculatePage: React.FC = () => {
                     </p>
                   </div>
                   <div>
+                    <p className="text-xs text-neutral-400">
+                      Current Bitcoin Block
+                    </p>
+                    <p className="text-white">{burnBlockHeight}</p>
+                  </div>
+                  <div>
                     <p className="text-xs text-neutral-400">Expiry Block</p>
-                    <p className="text-white">#{calculateClosingBlock()}</p>
+                    <p className="text-white">
+                      #{calculateClosingBlock()} (in approx. {days}d {hours}h{" "}
+                      {minutes}m)
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-neutral-400">Block Remaining</p>
@@ -539,25 +548,13 @@ const SpeculatePage: React.FC = () => {
                       {String(blockCountdown % 60).padStart(2, "0")})
                     </p>
                   </div>
-
-                  <div className="text-gray-500">Your Leverage:</div>
-                  <div>{leverage.toFixed(1)}x</div>
-
-                  <div className="text-gray-500">Counterparty Leverage:</div>
-                  <div>{counterpartyLeverage.toFixed(1)}x</div>
-
-                  <div className="text-gray-500">Current Bitcoin Block:</div>
-                  <div>{burnBlockHeight}</div>
-
-                  <div className="text-gray-500">Expiry Block:</div>
-                  <div>#{calculateClosingBlock()} (in approx. {days}d {hours}h {minutes}m)</div>
-                </div >
-              </div >
-            </div >
-          </div >
-        </div >
-      </div >
-    </main >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 };
 
