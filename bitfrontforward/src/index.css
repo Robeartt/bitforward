@@ -1,3 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Alata&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    font-family: "JetBrains Mono", monospace;
+  }
+
+  body {
+    @apply bg-gray-900 text-white;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "JetBrains Mono", monospace;
+    @apply font-semibold;
+  }
+}
+
+.logo-text {
+  font-family: "Alata", sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.terminal-container {
+  @apply border border-orange-500 border-opacity-20 bg-slate-950 bg-opacity-50 backdrop-blur-[10px] rounded-xl;
+}
+
+.terminal-header {
+  @apply text-lg font-semibold tracking-wide text-orange-500 mb-6;
+}
+
+.terminal-section {
+  @apply p-6 mb-5;
+}
+
+.terminal-panel {
+  @apply p-5 rounded-lg bg-slate-950 bg-opacity-80;
+}
+
+.terminal-text {
+  @apply font-mono;
+}
+
+.terminal-label {
+  @apply text-sm text-neutral-400;
+}
+
+.terminal-value {
+  @apply text-white;
+}
+
+.terminal-positive {
+  @apply text-green-500;
+}
+
+.terminal-negative {
+  @apply text-red-600;
+}
