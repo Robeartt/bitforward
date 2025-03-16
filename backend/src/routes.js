@@ -93,72 +93,149 @@ async function getMatchedPositionWithRetry(contract, address, maxRetries = 5, de
 export function createRoutes(storage, contract) {
     const router = express.Router();
 
-    // Existing routes...
-    router.post("/position/new", async (req, res) => {
-        try {
-            const { address } = req.body;
-            if (!address) {
-                return res.status(400).json({ error: "Address is required" });
-            }
+    // create position
 
-            console.log(`Checking position for address: ${address}`);
-
-            const rawPosition = await getPositionWithRetry(contract, address);
-            if (!rawPosition) {
-                return res.status(404).json({ 
-                    error: "Position not found after maximum retries",
-                    details: "The position might not be confirmed on the blockchain yet"
-                });
-            }
-
-            const processedPosition = processPositionResponse(rawPosition, address);
-            if (!processedPosition) {
-                return res.status(404).json({ 
-                    error: "Invalid position data",
-                    details: "Position exists but data is invalid"
-                });
-            }
-
-            storage.addPosition(processedPosition);
-            res.json(processedPosition);
-        } catch (error) {
-            console.error("Error:", error);
-            res.status(500).json({ 
-                error: error.message,
-                details: "An unexpected error occurred while processing the position"
-            });
-        }
-    });
-
-    router.post("/position/create", async (req, res) => {
-        try {
-            const { amount, closingBlock, isLong, asset, premium, longLeverage, shortLeverage, sender } = req.body;
+    // router.post("/position/create", async (req, res) => {
+    //     try {
+    //         const { amount, closingBlock, isLong, asset, premium, longLeverage, shortLeverage, sender } = req.body;
             
-            if (!amount || !closingBlock || isLong === undefined || !asset || !premium || !longLeverage || !shortLeverage || !sender) {
-                return res.status(400).json({ error: "Missing required parameters" });
-            }
+    //         if (!amount || !closingBlock || isLong === undefined || !asset || !premium || !longLeverage || !shortLeverage || !sender) {
+    //             return res.status(400).json({ error: "Missing required parameters" });
+    //         }
 
-            const result = await contract.createPosition(
-                amount, 
-                closingBlock, 
-                isLong, 
-                asset, 
-                premium,
-                longLeverage,
-                shortLeverage,
-                sender
-            );
+    //         const result = await contract.createPosition(
+    //             amount, 
+    //             closingBlock, 
+    //             isLong, 
+    //             asset, 
+    //             premium,
+    //             longLeverage,
+    //             shortLeverage,
+    //             sender
+    //         );
             
-            res.json({ txId: result });
-        } catch (error) {
-            console.error("Error:", error);
-            res.status(500).json({ 
-                error: error.message,
-                details: "Failed to create position"
-            });
-        }
-    });
+    //         res.json({ txId: result });
+    //     } catch (error) {
+    //         console.error("Error:", error);
+    //         res.status(500).json({ 
+    //             error: error.message,
+    //             details: "Failed to create position"
+    //         });
+    //     }
+    // });
 
+    // add position to backend
+
+    router.post("/position/add", async (req, res) => {
+        try {
+          const { 
+            address, 
+            amount, 
+            closingBlock, 
+            isLong, 
+            asset = "USD", 
+            premium = 0, 
+            longLeverage = 100000000, // Default 1x leverage (scaled by 10^8)
+            shortLeverage = 100000000  // Default 1x leverage (scaled by 10^8)
+          } = req.body;
+    
+          if (!address) {
+            return res.status(400).json({ error: "Address is required" });
+          }
+    
+          if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+            return res.status(400).json({ error: "Valid amount is required" });
+          }
+    
+          // If closingBlock is not provided, calculate it (e.g., 7 days from now)
+          const currentBlock = await getCurrentBlock();
+          const defaultClosingBlock = currentBlock + 1008; // ~7 days (at ~10 min/block)
+          const effectiveClosingBlock = closingBlock || defaultClosingBlock;
+    
+          console.log(`Adding position for address: ${address}`);
+          console.log(`Amount: ${amount}, Closing Block: ${effectiveClosingBlock}`);
+          console.log(`Position Type: ${isLong ? 'Long' : 'Short'}, Asset: ${asset}`);
+          console.log(`Premium: ${premium}, Long Leverage: ${longLeverage}, Short Leverage: ${shortLeverage}`);
+    
+          // Create a new position object
+          const newPosition = {
+            address,
+            amount: Number(amount),
+            closingBlock: Number(effectiveClosingBlock),
+            long: Boolean(isLong),
+            matched: null,
+            openBlock: currentBlock,
+            openValue: 0, // This will be filled when confirmed from blockchain
+            premium: Number(premium),
+            status: "pending"
+          };
+    
+          // Add to storage
+          storage.addPosition(newPosition);
+          await storage.persist();
+    
+          res.json({ 
+            success: true, 
+            message: "Position added successfully", 
+            position: newPosition 
+          });
+        } catch (error) {
+          console.error("Error adding position:", error);
+          res.status(500).json({ 
+            error: error.message,
+            details: "An unexpected error occurred while adding the position"
+          });
+        }
+      });
+
+
+
+      router.post("/position/remove", async (req, res) => {
+        try {
+          const { address } = req.body;
+    
+          if (!address) {
+            return res.status(400).json({ error: "Address is required" });
+          }
+    
+          console.log(`Removing position for address: ${address}`);
+    
+          const positions = storage.getPositions();
+          const positionIndex = positions.findIndex(p => p.address === address);
+    
+          if (positionIndex === -1) {
+            return res.status(404).json({ error: "Position not found" });
+          }
+    
+          // Remove position from storage
+          const removedPosition = positions[positionIndex];
+          storage.removePosition(address);
+          await storage.persist();
+    
+          // If the position has a match, also handle that relationship
+          if (removedPosition.matched) {
+            const matchedPosition = positions.find(p => p.address === removedPosition.matched);
+            if (matchedPosition) {
+              matchedPosition.matched = null;
+              // Update the matched position in storage
+              storage.addPosition(matchedPosition);
+              await storage.persist();
+            }
+          }
+    
+          res.json({ 
+            success: true, 
+            message: "Position removed successfully", 
+            position: removedPosition 
+          });
+        } catch (error) {
+          console.error("Error removing position:", error);
+          res.status(500).json({ 
+            error: error.message,
+            details: "An unexpected error occurred while removing the position"
+          });
+        }
+      });
 
     router.post("/position/match", async (req, res) => {
         try {
@@ -220,6 +297,14 @@ export function createRoutes(storage, contract) {
 
     router.get("/positions", (req, res) => {
         res.json(storage.getPositions());
+    });
+
+    // this filters all positions to only the matchable ones
+    router.get("/positions/matchable", (req, res) => {
+        const positions = storage.getPositions();
+        // Return unmatched positions only
+        const matchablePositions = positions.filter(pos => pos.matched === null);
+        res.json(matchablePositions);
     });
 
     router.get("/positions/history", (req, res) => {
