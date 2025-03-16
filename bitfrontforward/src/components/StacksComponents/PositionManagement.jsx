@@ -1,128 +1,114 @@
 import React, { useState, useEffect } from 'react';
 import { useStacks } from '../../context/StacksContext';
-import { openContractCall } from '@stacks/connect';
-import { makeStandardSTXPostCondition, FungibleConditionCode } from '@stacks/transactions';
-import { principalCV } from '@stacks/transactions';
 import { ArrowLeftRight } from 'lucide-react';
+import { getPositions } from '../../utils/backendUtils';
+import { getContract, takePosition } from '../../utils/stacksUtils';
 
 const PositionManagement = () => {
   const { stacksUser, stacksNetwork } = useStacks();
   const [positions, setPositions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [matchingPosition, setMatchingPosition] = useState(null);
 
-  const calculateUsdValue = (amount, openValue) => {
-    const stxAmount = amount / 1000000;
-    const pricePerSTX = (openValue / amount);
-    return (openValue / 1000000).toFixed(2);
-  };
+  // We're no longer using these formatting functions as we'll display raw contract data
 
-  const calculatePremiumAmount = (amount, premium) => {
-    // premium is already in STX terms and scaled by 1000000
-    return formatSTX(premium);
-  };
-
-  useEffect(() => {
-    loadPositions();
-    const interval = setInterval(loadPositions, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
+  // Function to load positions with contract details
   const loadPositions = async () => {
     try {
       setLoading(true);
-      const fetchedPositions = await fetchAllPositions();
-      const unmatchedPositions = fetchedPositions
-        .filter(position => position.matched === null)
-        .map(position => ({
-          ...position,
-          type: position.long ? 'Long' : 'Hedge',
-          amount: formatSTX(position.amount),
-          usdValue: calculateUsdValue(position.amount, position.openValue),
-          premiumAmount: calculatePremiumAmount(position.amount, position.premium),
-          premiumPercentage: ((position.premium / position.amount) * 100).toFixed(2)
-        }));
-      setPositions(unmatchedPositions);
+      setError(null);
+
+      // Fetch positions from backend
+      const backendPositions = await getPositions();
+
+      // Enhance positions with contract details
+      const enhancedPositions = await Promise.all(
+        backendPositions.map(async (position) => {
+          try {
+            // Get contract details for each position
+            const contractDetails = await getContract(position.contractId);
+
+            if (!contractDetails) {
+              // Skip positions without valid contract details
+              return null;
+            }
+
+            return {
+              ...position,
+              contractDetails
+            };
+          } catch (err) {
+            console.error(`Error enhancing position ${position.contractId}:`, err);
+            return null;
+          }
+        })
+      );
+
+      // Filter out null values (positions that couldn't be enhanced)
+      const validPositions = enhancedPositions.filter(p => p !== null);
+
+      setPositions(validPositions);
     } catch (err) {
-      setError('Failed to fetch positions');
       console.error('Error loading positions:', err);
+      setError('Failed to fetch positions. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMatchPosition = async (owner) => {
+  useEffect(() => {
+    // Load positions initially
+    loadPositions();
+
+    // Set up periodic refresh (every 30 seconds)
+    const interval = setInterval(loadPositions, 30000);
+
+    // Clean up interval on component unmount
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMatchPosition = async (position) => {
     if (!stacksUser) {
-      alert('Please connect your wallet first');
+      setError('Please connect your wallet first');
       return;
     }
 
     try {
+      setMatchingPosition(position.contractId);
       setIsSubmitting(true);
       setError(null);
 
-      const postConditions = [
-        makeStandardSTXPostCondition(
-          stacksUser.profile.stxAddress.testnet,
-          FungibleConditionCode.Greater,
-          0
-        )
-      ];
+      // Use stacksUtils.takePosition to match the position
+      await takePosition(stacksNetwork, {
+        contractId: position.contractId,
+        senderAddress: stacksUser.profile.stxAddress.testnet,
+        onFinish: async (data) => {
+          console.log('Position matched successfully:', data);
 
-      const options = {
-        contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
-        contractName: "bitforward",
-        functionName: "match-position",
-        functionArgs: [
-          principalCV(owner)
-        ],
-        network: stacksNetwork,
-        postConditions,
-        onFinish: async ({ txId }) => {
-          console.log('Match Transaction:', txId);
+          // Refresh positions after successful match
+          await loadPositions();
 
-          try {
-            const response = await fetch('http://localhost:3001/api/position/match', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                address: stacksUser.profile.stxAddress.testnet,
-                matchedAddress: owner
-              }),
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-            }
-
-            await loadPositions();
-            console.log('Position matched successfully');
-          } catch (error) {
-            console.error('Error confirming match:', error);
-            setError('Failed to confirm match: ' + error.message);
-          } finally {
-            setIsSubmitting(false);
-          }
-        },
-        onCancel: () => {
-          console.log('Match transaction canceled by user');
           setIsSubmitting(false);
+          setMatchingPosition(null);
+        },
+        onCancel: (error) => {
+          console.error('Position matching canceled or failed:', error);
+          setError('Match canceled or failed: ' + (error?.message || 'Unknown error'));
+          setIsSubmitting(false);
+          setMatchingPosition(null);
         }
-      };
-
-      await openContractCall(options);
+      });
     } catch (error) {
       console.error('Error matching position:', error);
       setError('Failed to match position: ' + error.message);
       setIsSubmitting(false);
+      setMatchingPosition(null);
     }
   };
 
-  if (loading) {
+  if (loading && positions.length === 0) {
     return (
       <div className="bg-gray-900 rounded-lg shadow-lg">
         <div className="p-4 border-b border-gray-800">
@@ -133,6 +119,7 @@ const PositionManagement = () => {
         </div>
         <div className="flex justify-center items-center p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+          <span className="ml-2 text-gray-400">Loading positions...</span>
         </div>
       </div>
     );
@@ -164,84 +151,100 @@ const PositionManagement = () => {
           </div>
           <div className="text-sm text-gray-400">
             {positions.length} available to match
+            {loading && <span className="ml-2">(refreshing...)</span>}
           </div>
         </h3>
       </div>
 
-      {error ? (
+      {error && (
         <div className="p-4">
           <div className="bg-red-900/20 border border-red-900 text-red-500 p-4 rounded-lg">
             {error}
-          </div>
-        </div>
-      ) : (
-        <div className="p-4">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-gray-400 border-b border-gray-800">
-                  <th className="p-2">Type</th>
-                  <th className="p-2">Amount</th>
-                  <th className="p-2">Start Block</th>
-                  <th className="p-2">Closing Block</th>
-                  <th className="p-2">Premium</th>
-                  <th className="p-2">Address</th>
-                  <th className="p-2">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {positions.length > 0 ? positions.map((position, index) => (
-                  <tr key={index} className="border-t border-gray-800 hover:bg-gray-800/50">
-                    <td className="p-2">
-                      <span className={`px-2 py-1 rounded text-xs ${position.type === 'Long' ? 'bg-green-600' : 'bg-blue-600'
-                        }`}>
-                        {position.type}
-                      </span>
-                    </td>
-                    <td className="p-2">
-                      <div>{position.amount}</div>
-                      <div className="text-sm text-gray-400">
-                        ${position.usdValue}
-                      </div>
-                    </td>
-                    <td className="p-2">{position.openBlock}</td>
-                    <td className="p-2">{position.closingBlock}</td>
-                    <td className="p-2">
-                      <div className={position.type === 'Hedge' ? 'text-green-500' : 'text-red-500'}>
-                        {position.type === 'Hedge' ? '-' : '+'}{position.premiumPercentage}%
-                      </div>
-                      <div className={position.type === 'Hedge' ? 'text-sm text-green-500' : 'text-sm text-red-500'}>
-                        {position.premiumAmount}
-                      </div>
-                    </td>
-                    <td className="p-2 font-mono text-sm">
-                      {position.owner?.slice(0, 8)}...{position.owner?.slice(-8)}
-                    </td>
-                    <td className="p-2">
-                      <button
-                        onClick={() => handleMatchPosition(position.owner)}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${stacksUser && !isSubmitting
-                            ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-                            : 'bg-gray-600 cursor-not-allowed opacity-50'
-                          }`}
-                        disabled={!stacksUser || isSubmitting}
-                      >
-                        {isSubmitting ? 'Matching...' : 'Match'}
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-400">
-                      No positions available to match
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <button
+              onClick={() => {
+                setError(null);
+                loadPositions();
+              }}
+              className="ml-4 text-sm text-indigo-500 hover:text-indigo-400"
+            >
+              Try again
+            </button>
           </div>
         </div>
       )}
+
+      <div className="p-4">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-gray-400 border-b border-gray-800">
+                <th className="p-2">Contract ID</th>
+                <th className="p-2">Position Type</th>
+                <th className="p-2">Amount</th>
+                <th className="p-2">Closing Block</th>
+                <th className="p-2">Premium</th>
+                <th className="p-2">Asset</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.length > 0 ? positions.map((position) => {
+                const contract = position.contractDetails;
+                const isLong = contract.longId > 0 && contract.shortId === 0;
+
+                return (
+                  <tr key={position.contractId} className="border-t border-gray-800 hover:bg-gray-800/50">
+                    <td className="p-2 font-mono text-sm">{position.contractId}</td>
+                    <td className="p-2">
+                      <span className={`px-2 py-1 rounded text-xs ${isLong ? 'bg-green-600' : 'bg-blue-600'}`}>
+                        {isLong ? 'Long' : 'Short'}
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      <div>{contract.collateralAmount}</div>
+                    </td>
+                    <td className="p-2">{contract.closingBlock}</td>
+                    <td className="p-2">
+                      <div className={contract.premium >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        {contract.premium}
+                      </div>
+                    </td>
+                    <td className="p-2 font-mono">{contract.asset}</td>
+                    <td className="p-2 font-mono">
+                      {contract.status === 1 ? 'Open' :
+                        contract.status === 2 ? 'Filled' :
+                          contract.status === 3 ? 'Closed' : 'Unknown'}
+                    </td>
+                    <td className="p-2">
+                      <button
+                        onClick={() => handleMatchPosition(position)}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${stacksUser && !isSubmitting && contract.status === 1
+                          ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                          : 'bg-gray-600 cursor-not-allowed opacity-50'
+                          }`}
+                        disabled={!stacksUser || isSubmitting || matchingPosition !== null || contract.status !== 1}
+                      >
+                        {matchingPosition === position.contractId
+                          ? 'Matching...'
+                          : isSubmitting
+                            ? 'Wait...'
+                            : 'Match'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={8} className="text-center py-8 text-gray-400">
+                    {loading ? 'Loading positions...' : 'No positions available to match'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };

@@ -144,15 +144,6 @@ function AppContent() {
           element={
             <main className="container mx-auto py-8 px-4">
               <div className="grid grid-cols-1 gap-6">
-                <div className="p-6 mb-5 rounded-xl border border-solid backdrop-blur-[10px] bg-slate-950 bg-opacity-50 border-orange-500 border-opacity-20">
-                  <div className="mb-6 text-lg font-semibold tracking-wide text-orange-500">
-                    <p className="text-orange-500">OVERVIEW</p>
-                    <p>
-                      <br />
-                    </p>
-                  </div>
-                  <Overview />
-                </div>
 
                 <div className="p-6 mb-5 rounded-xl border border-solid backdrop-blur-[10px] bg-slate-950 bg-opacity-50 border-orange-500 border-opacity-20">
                   <div className="mb-6 text-lg font-semibold tracking-wide text-orange-500">

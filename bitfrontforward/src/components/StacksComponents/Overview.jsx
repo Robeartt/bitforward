@@ -23,7 +23,7 @@ export default function Overview() {
         </div>
       )}
 
-      <CreatePosition onSuccess={handlePositionCreated} />
+
     </div>
   );
 }

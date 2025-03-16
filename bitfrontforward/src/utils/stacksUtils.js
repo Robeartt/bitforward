@@ -220,7 +220,7 @@ export const takePosition = async (stacksNetwork, options) => {
             ],
             network: stacksNetwork || DEFAULT_NETWORK,
             postConditions: [postCondition],
-            postConditionMode: PostConditionMode.ALLOW,
+            postConditionMode: PostConditionMode.Allow,
             onFinish,
             onCancel
         };
