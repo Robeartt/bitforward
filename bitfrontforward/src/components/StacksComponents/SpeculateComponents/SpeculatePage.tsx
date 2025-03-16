@@ -5,20 +5,7 @@ import { ExpirySelector } from "./ExpirySelector";
 import { LeverageSlider } from "./LeverageSlider";
 import { AssetType } from "./types";
 import { useStacks } from "../../../context/StacksContext";
-<<<<<<< HEAD
-import { openContractCall } from "@stacks/connect";
-import {
-  uintCV,
-  stringAsciiCV,
-  intCV,
-  boolCV,
-  makeStandardSTXPostCondition,
-  FungibleConditionCode,
-} from "@stacks/transactions";
-import { getCurrentBlock } from "../../../utils/stacksUtils";
-=======
 import { getBurnBlockHeight, createPosition } from "../../../utils/stacksUtils";
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
 
 const SpeculatePage: React.FC = () => {
   const { stacksUser, stacksNetwork, prices } = useStacks();
@@ -249,33 +236,6 @@ const SpeculatePage: React.FC = () => {
       // Calculate closing block
       const closingBlock = calculateClosingBlock();
 
-<<<<<<< HEAD
-      // Create post conditions to ensure user has enough BTC
-      const postConditions = [
-        makeStandardSTXPostCondition(
-          stacksUser.profile.stxAddress.testnet,
-          FungibleConditionCode.LessEqual,
-          amountMicroBTC,
-        ),
-      ];
-
-      // Call the smart contract
-      const options = {
-        contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
-        contractName: "bitforward",
-        functionName: "create-position",
-        functionArgs: [
-          uintCV(amountMicroBTC),
-          uintCV(closingBlock),
-          boolCV(isLong),
-          stringAsciiCV(assetCode),
-          intCV(premiumMicroBTC),
-          uintCV(longLeverageValue),
-          uintCV(shortLeverageValue),
-        ],
-        network: stacksNetwork,
-        postConditions,
-=======
       // Get sender address from wallet for post-conditions
       const senderAddress = stacksUser.profile.stxAddress.testnet;
 
@@ -287,7 +247,7 @@ const SpeculatePage: React.FC = () => {
         asset: assetCode,
         premium: premiumMicroBTC,
         longLeverage: longLeverageValue,
-        shortLeverage: shortLeverageValue
+        shortLeverage: shortLeverageValue,
       });
 
       // Use createPosition with proper post-conditions
@@ -300,29 +260,18 @@ const SpeculatePage: React.FC = () => {
         longLeverage: longLeverageValue,
         shortLeverage: shortLeverageValue,
         senderAddress, // Pass sender address for post-conditions
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
         onFinish: (data) => {
           console.log("Position created successfully", data);
           setSuccessTxId(data.txId);
           setIsSubmitting(false);
           resetForm();
         },
-<<<<<<< HEAD
-        onCancel: () => {
-          setError("Transaction was canceled");
+        onCancel: (error) => {
+          console.error("Transaction canceled or failed:", error);
+          setError(`Transaction failed: ${error?.message || "Unknown error"}`);
           setIsSubmitting(false);
         },
-      };
-
-      await openContractCall(options);
-=======
-        onCancel: (error) => {
-          console.error('Transaction canceled or failed:', error);
-          setError(`Transaction failed: ${error?.message || 'Unknown error'}`);
-          setIsSubmitting(false);
-        }
       });
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
     } catch (err: any) {
       console.error("Error creating position:", err);
       setError(`Failed to create position: ${err.message}`);
@@ -532,7 +481,7 @@ const SpeculatePage: React.FC = () => {
               {/* Contract parameters summary */}
               <div className="p-4 bg-slate-900 rounded-lg mt-4">
                 <h3 className="text-sm text-neutral-400 mb-3">
-                  Position Summary
+                  Contract Parameters
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
@@ -567,8 +516,17 @@ const SpeculatePage: React.FC = () => {
                     </p>
                   </div>
                   <div>
+                    <p className="text-xs text-neutral-400">
+                      Current Bitcoin Block
+                    </p>
+                    <p className="text-white">{burnBlockHeight}</p>
+                  </div>
+                  <div>
                     <p className="text-xs text-neutral-400">Expiry Block</p>
-                    <p className="text-white">#{calculateClosingBlock()}</p>
+                    <p className="text-white">
+                      #{calculateClosingBlock()} (in approx. {days}d {hours}h{" "}
+                      {minutes}m)
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-neutral-400">Block Remaining</p>
@@ -581,21 +539,6 @@ const SpeculatePage: React.FC = () => {
                       {String(blockCountdown % 60).padStart(2, "0")})
                     </p>
                   </div>
-<<<<<<< HEAD
-=======
-
-                  <div className="text-gray-500">Your Leverage:</div>
-                  <div>{leverage.toFixed(1)}x</div>
-
-                  <div className="text-gray-500">Counterparty Leverage:</div>
-                  <div>{counterpartyLeverage.toFixed(1)}x</div>
-
-                  <div className="text-gray-500">Current Bitcoin Block:</div>
-                  <div>{burnBlockHeight}</div>
-
-                  <div className="text-gray-500">Expiry Block:</div>
-                  <div>#{calculateClosingBlock()} (in approx. {days}d {hours}h {minutes}m)</div>
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
                 </div>
               </div>
             </div>
