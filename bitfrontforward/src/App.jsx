@@ -7,7 +7,7 @@ import {
   useLocation,
   Navigate,
 } from "react-router-dom";
-import { StacksProvider } from "./context/StacksContext";
+import { StacksProvider, useStacks } from "./context/StacksContext";
 import Overview from "./components/StacksComponents/Overview";
 import WalletConnect from "./components/StacksComponents/WalletConnect";
 import Positions from "./components/StacksComponents/Positions";
@@ -66,6 +66,23 @@ function Navigation() {
   );
 }
 
+// Current Price display component
+function CurrentPrice() {
+  const { prices } = useStacks();
+
+  // Format the USD price with commas for thousands and 2 decimal places
+  const formattedPrice = prices.USD.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  return (
+    <div className="text-sm text-gray-500">
+      Current Price: ${formattedPrice} USD
+    </div>
+  );
+}
+
 function App() {
   const [isConnected, setIsConnected] = useState(true);
   const [currentTime, setCurrentTime] = useState(
@@ -96,7 +113,7 @@ function App() {
                 <span className="text-orange-500 logo-text">Bit</span>
                 <span className="text-slate-50 logo-text">Forward</span>
               </Link>
-              {}
+              { }
               <div className="object-contain ml-0 h-[30px] w-[30px] max-sm:w-6 max-sm:h-6"></div>
             </div>
             <Navigation />
@@ -118,7 +135,7 @@ function App() {
           </div>
 
           <div className="flex gap-5 justify-end items-center px-5 py-2.5 mb-5">
-            <div className="text-sm text-gray-500">Current Price: 1.25 BTC</div>
+            <CurrentPrice />
             <WalletConnect />
           </div>
 

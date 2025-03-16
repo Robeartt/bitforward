@@ -1,23 +1,75 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { AppConfig, UserSession, showConnect } from '@stacks/connect';
-import { StacksDevnet } from '@stacks/network';
+import { StacksTestnet } from '@stacks/network';
+import { callReadOnlyFunction, cvToJSON, stringAsciiCV } from '@stacks/transactions';
 
 const StacksContext = createContext();
 
 export function StacksProvider({ children }) {
   const [stacksUser, setStacksUser] = useState(null);
-  // Change to StacksTestnet
-  const stacksNetwork = new StacksDevnet();
-  
-  // Include store_write permission for contract interactions
+  const stacksNetwork = new StacksTestnet();
   const appConfig = new AppConfig(['store_write']);
   const userSession = new UserSession({ appConfig });
+
+  // Add prices state
+  const [prices, setPrices] = useState({
+    USD: 0,
+    EUR: 0,
+    GBP: 0
+  });
 
   useEffect(() => {
     if (userSession.isUserSignedIn()) {
       setStacksUser(userSession.loadUserData());
     }
+
+    console.log('Fetching prices...');
+
+    // Fetch initial prices
+    fetchPrices();
+
+    console.log('Setting up price interval...');
+
+    // Set up interval to fetch prices every 30 seconds
+    const priceInterval = setInterval(fetchPrices, 30000);
+
+    return () => clearInterval(priceInterval);
   }, []);
+
+  // Function to fetch prices from oracle
+  const fetchPrices = async () => {
+    try {
+      const assets = ['USD', 'EUR', 'GBP'];
+      const newPrices = {};
+
+      console.log('Fetching prices for assets:', assets);
+
+      for (const asset of assets) {
+        console.log('Fetching price for asset:', asset);
+        const priceResponse = await callReadOnlyFunction({
+          contractAddress: "ST1QBZR0Z3BMY6TCEQ8KABEK000HKGVW0XBTK3X9A",
+          contractName: "bitforward-oracle",
+          functionName: "get-price",
+          functionArgs: [stringAsciiCV(asset)],
+          network: 'testnet',
+          senderAddress: 'ST1QBZR0Z3BMY6TCEQ8KABEK000HKGVW0XBTK3X9A',
+        });
+        console.log(priceResponse);
+
+        const priceData = cvToJSON(priceResponse);
+
+        // Descale by 8 scalar (divide by 100,000,000)
+        const rawPrice = parseInt(priceData.value.value);
+        const descaledPrice = rawPrice / 100000000;
+
+        newPrices[asset] = descaledPrice;
+      }
+
+      setPrices(newPrices);
+    } catch (error) {
+      console.error("Error fetching prices:", error);
+    }
+  };
 
   const connectWallet = () => {
     showConnect({
@@ -29,11 +81,10 @@ export function StacksProvider({ children }) {
       onFinish: () => {
         const userData = userSession.loadUserData();
         setStacksUser(userData);
-        // Log connection for debugging
         console.log('Connected to Stacks Testnet:', userData.profile.stxAddress.testnet);
       },
       userSession,
-      network: stacksNetwork, // Explicitly set network
+      network: 'testnet',
     });
   };
 
@@ -43,31 +94,17 @@ export function StacksProvider({ children }) {
     console.log('Disconnected from Stacks Testnet');
   };
 
-  // Add network status check
-  useEffect(() => {
-    const checkNetwork = async () => {
-      try {
-        const response = await fetch('http://localhost:3999/v2/info');
-        const data = await response.json();
-        console.log('Connected to Stacks Testnet:', data.network_id);
-      } catch (error) {
-        console.error('Error connecting to Stacks Testnet:', error);
-      }
-    };
-
-    checkNetwork();
-  }, []);
-
   const value = {
     stacksUser,
     stacksNetwork,
     connectWallet,
     disconnectWallet,
     userSession,
-    // Add helper functions for common operations
     isSignedIn: () => userSession.isUserSignedIn(),
     getAddress: () => stacksUser?.profile?.stxAddress?.testnet || null,
     getNetwork: () => stacksNetwork,
+    // Add prices to the context value (now they're descaled by 8 scalar)
+    prices
   };
 
   return (
@@ -79,7 +116,6 @@ export function StacksProvider({ children }) {
 
 export const useStacks = () => useContext(StacksContext);
 
-// Add helper hook for common address access
 export const useStacksAddress = () => {
   const { stacksUser } = useStacks();
   return stacksUser?.profile?.stxAddress?.testnet || null;
