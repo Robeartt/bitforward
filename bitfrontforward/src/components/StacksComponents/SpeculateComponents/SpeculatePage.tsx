@@ -5,7 +5,6 @@ import { ExpirySelector } from "./ExpirySelector";
 import { LeverageSlider } from "./LeverageSlider";
 import { AssetType } from "./types";
 import { useStacks } from "../../../context/StacksContext";
-<<<<<<< HEAD
 import { openContractCall } from "@stacks/connect";
 import {
   uintCV,
@@ -15,10 +14,7 @@ import {
   makeStandardSTXPostCondition,
   FungibleConditionCode,
 } from "@stacks/transactions";
-import { getCurrentBlock } from "../../../utils/stacksUtils";
-=======
-import { getBurnBlockHeight, createPosition } from "../../../utils/stacksUtils";
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
+import { getBurnBlockHeight } from "../../../utils/stacksUtils";
 
 const SpeculatePage: React.FC = () => {
   const { stacksUser, stacksNetwork, prices } = useStacks();
@@ -249,7 +245,6 @@ const SpeculatePage: React.FC = () => {
       // Calculate closing block
       const closingBlock = calculateClosingBlock();
 
-<<<<<<< HEAD
       // Create post conditions to ensure user has enough BTC
       const postConditions = [
         makeStandardSTXPostCondition(
@@ -275,39 +270,12 @@ const SpeculatePage: React.FC = () => {
         ],
         network: stacksNetwork,
         postConditions,
-=======
-      // Get sender address from wallet for post-conditions
-      const senderAddress = stacksUser.profile.stxAddress.testnet;
-
-      console.log("Creating position with parameters:", {
-        senderAddress,
-        amount: amountMicroBTC,
-        closingBlock,
-        isLong,
-        asset: assetCode,
-        premium: premiumMicroBTC,
-        longLeverage: longLeverageValue,
-        shortLeverage: shortLeverageValue
-      });
-
-      // Use createPosition with proper post-conditions
-      await createPosition(stacksNetwork, {
-        amount: amountMicroBTC,
-        closingBlock,
-        isLong,
-        asset: assetCode,
-        premium: premiumMicroBTC,
-        longLeverage: longLeverageValue,
-        shortLeverage: shortLeverageValue,
-        senderAddress, // Pass sender address for post-conditions
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
         onFinish: (data) => {
           console.log("Position created successfully", data);
           setSuccessTxId(data.txId);
           setIsSubmitting(false);
           resetForm();
         },
-<<<<<<< HEAD
         onCancel: () => {
           setError("Transaction was canceled");
           setIsSubmitting(false);
@@ -315,14 +283,6 @@ const SpeculatePage: React.FC = () => {
       };
 
       await openContractCall(options);
-=======
-        onCancel: (error) => {
-          console.error('Transaction canceled or failed:', error);
-          setError(`Transaction failed: ${error?.message || 'Unknown error'}`);
-          setIsSubmitting(false);
-        }
-      });
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
     } catch (err: any) {
       console.error("Error creating position:", err);
       setError(`Failed to create position: ${err.message}`);
@@ -403,22 +363,20 @@ const SpeculatePage: React.FC = () => {
                 <div className="flex gap-4">
                   <button
                     type="button"
-                    className={`flex-1 py-3 px-4 rounded-lg ${
-                      isLong
-                        ? "bg-green-900 bg-opacity-30 border border-green-500 text-green-400"
-                        : "bg-slate-800 text-gray-400"
-                    }`}
+                    className={`flex-1 py-3 px-4 rounded-lg ${isLong
+                      ? "bg-green-900 bg-opacity-30 border border-green-500 text-green-400"
+                      : "bg-slate-800 text-gray-400"
+                      }`}
                     onClick={() => setIsLong(true)}
                   >
                     Long
                   </button>
                   <button
                     type="button"
-                    className={`flex-1 py-3 px-4 rounded-lg ${
-                      !isLong
-                        ? "bg-red-900 bg-opacity-30 border border-red-500 text-red-400"
-                        : "bg-slate-800 text-gray-400"
-                    }`}
+                    className={`flex-1 py-3 px-4 rounded-lg ${!isLong
+                      ? "bg-red-900 bg-opacity-30 border border-red-500 text-red-400"
+                      : "bg-slate-800 text-gray-400"
+                      }`}
                     onClick={() => setIsLong(false)}
                   >
                     Short
@@ -581,8 +539,6 @@ const SpeculatePage: React.FC = () => {
                       {String(blockCountdown % 60).padStart(2, "0")})
                     </p>
                   </div>
-<<<<<<< HEAD
-=======
 
                   <div className="text-gray-500">Your Leverage:</div>
                   <div>{leverage.toFixed(1)}x</div>
@@ -595,14 +551,13 @@ const SpeculatePage: React.FC = () => {
 
                   <div className="text-gray-500">Expiry Block:</div>
                   <div>#{calculateClosingBlock()} (in approx. {days}d {hours}h {minutes}m)</div>
->>>>>>> 47123918f02c47f0bc2debd83337ec0f5b323dfd
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
+                </div >
+              </div >
+            </div >
+          </div >
+        </div >
+      </div >
+    </main >
   );
 };
 

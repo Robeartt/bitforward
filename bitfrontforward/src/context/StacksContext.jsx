@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { AppConfig, UserSession, showConnect } from '@stacks/connect';
 import { StacksTestnet } from '@stacks/network';
 import { callReadOnlyFunction, cvToJSON, stringAsciiCV } from '@stacks/transactions';
+import { getUserNFTs, getContract } from '../utils/stacksUtils'; // Import the functions
 
 const StacksContext = createContext();
 
@@ -18,6 +19,10 @@ export function StacksProvider({ children }) {
     GBP: 0
   });
 
+  // Store user positions in a map for easy access
+  const [positionsMap, setPositionsMap] = useState(new Map());
+  const [isLoadingPositions, setIsLoadingPositions] = useState(false);
+
   useEffect(() => {
     if (userSession.isUserSignedIn()) {
       setStacksUser(userSession.loadUserData());
@@ -31,6 +36,21 @@ export function StacksProvider({ children }) {
 
     return () => clearInterval(priceInterval);
   }, []);
+
+  // Fetch user positions whenever the user changes
+  useEffect(() => {
+    if (stacksUser) {
+      fetchUserPositions();
+
+      // Set up interval to refresh positions every 60 seconds when user is logged in
+      const positionsInterval = setInterval(fetchUserPositions, 60000);
+
+      return () => clearInterval(positionsInterval);
+    } else {
+      // Clear positions when user logs out
+      setPositionsMap(new Map());
+    }
+  }, [stacksUser]);
 
   // Function to fetch prices from oracle
   const fetchPrices = async () => {
@@ -63,6 +83,73 @@ export function StacksProvider({ children }) {
     }
   };
 
+  // Function to fetch user's positions
+  const fetchUserPositions = async () => {
+    if (!stacksUser) return;
+
+    try {
+      setIsLoadingPositions(true);
+      const userAddress = stacksUser.profile.stxAddress.testnet;
+
+      // Get user's NFTs
+      const nfts = await getUserNFTs(userAddress);
+
+      // Create a new positions map
+      const newPositionsMap = new Map();
+
+      // Fetch contract details for each NFT
+      await Promise.all(
+        nfts.map(async (nft) => {
+          try {
+            const contract = await getContract(nft.contractId);
+            if (contract) {
+              // Determine if this is a long or short position
+              const isLong = contract.longId === nft.tokenId;
+
+              // Create position object with important details
+              const position = {
+                tokenId: nft.tokenId,
+                contractId: nft.contractId,
+                isLong,
+                positionType: isLong ? 'Long' : 'Short',
+                asset: contract.asset,
+                status: getContractStatusText(contract.status),
+                collateralAmount: contract.collateralAmount,
+                premium: contract.premium,
+                openPrice: contract.openPrice,
+                closePrice: contract.closePrice,
+                closingBlock: contract.closingBlock,
+                leverage: isLong ? contract.longLeverage : contract.shortLeverage,
+                contractDetails: contract
+              };
+
+              // Add to positions map with tokenId as key
+              newPositionsMap.set(nft.tokenId, position);
+            }
+          } catch (error) {
+            console.error(`Error fetching contract details for NFT ${nft.tokenId}:`, error);
+          }
+        })
+      );
+
+      setPositionsMap(newPositionsMap);
+    } catch (error) {
+      console.error("Error fetching user positions:", error);
+    } finally {
+      setIsLoadingPositions(false);
+    }
+  };
+
+  // Helper function to convert contract status to text
+  const getContractStatusText = (status) => {
+    switch (status) {
+      case 1: return 'Open';
+      case 2: return 'Filled';
+      case 3: return 'Closed';
+      default: return 'Unknown';
+    }
+  };
+
   const connectWallet = () => {
     showConnect({
       appDetails: {
@@ -74,6 +161,9 @@ export function StacksProvider({ children }) {
         const userData = userSession.loadUserData();
         setStacksUser(userData);
         console.log('Connected to Stacks Testnet:', userData.profile.stxAddress.testnet);
+
+        // Fetch positions when user connects
+        fetchUserPositions();
       },
       userSession,
       network: 'testnet',
@@ -83,7 +173,28 @@ export function StacksProvider({ children }) {
   const disconnectWallet = () => {
     userSession.signUserOut();
     setStacksUser(null);
+    setPositionsMap(new Map());
     console.log('Disconnected from Stacks Testnet');
+  };
+
+  // Manually trigger position refresh
+  const refreshUserPositions = () => {
+    return fetchUserPositions();
+  };
+
+  // Get all positions as an array
+  const getUserPositions = () => {
+    return Array.from(positionsMap.values());
+  };
+
+  // Get a specific position by tokenId
+  const getPositionByTokenId = (tokenId) => {
+    return positionsMap.get(tokenId);
+  };
+
+  // Get positions by type (Long or Short)
+  const getPositionsByType = (isLong) => {
+    return Array.from(positionsMap.values()).filter(position => position.isLong === isLong);
   };
 
   const value = {
@@ -95,8 +206,15 @@ export function StacksProvider({ children }) {
     isSignedIn: () => userSession.isUserSignedIn(),
     getAddress: () => stacksUser?.profile?.stxAddress?.testnet || null,
     getNetwork: () => stacksNetwork,
-    // Add prices to the context value (now they're descaled by 8 scalar)
-    prices
+    // Add prices to the context value
+    prices,
+    // Add positions-related functions to the context value
+    positionsMap,
+    getUserPositions,
+    getPositionByTokenId,
+    getPositionsByType,
+    isLoadingPositions,
+    refreshUserPositions,
   };
 
   return (

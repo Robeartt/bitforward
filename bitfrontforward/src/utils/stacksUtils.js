@@ -68,29 +68,104 @@ export const getContract = async (contractId) => {
 
         const contractData = cvToJSON(response);
 
-        if (!contractData.value) {
+        // Check if the contract exists
+        if (!contractData.value || !contractData.value.value) {
             return null;
         }
 
+        // Now correctly extract values from the nested structure
+        const contractFields = contractData.value.value;
+
         // Parse and return contract data
         return {
-            collateralAmount: parseInt(contractData.value['collateral-amount'].value),
-            premium: parseInt(contractData.value.premium.value),
-            openPrice: parseInt(contractData.value['open-price'].value),
-            closePrice: parseInt(contractData.value['close-price'].value),
-            closingBlock: parseInt(contractData.value['closing-block'].value),
-            asset: contractData.value.asset.value,
-            longLeverage: parseInt(contractData.value['long-leverage'].value),
-            shortLeverage: parseInt(contractData.value['short-leverage'].value),
-            status: parseInt(contractData.value.status.value),
-            longId: parseInt(contractData.value['long-id'].value),
-            shortId: parseInt(contractData.value['short-id'].value),
-            longPayout: parseInt(contractData.value['long-payout'].value),
-            shortPayout: parseInt(contractData.value['short-payout'].value)
+            collateralAmount: parseInt(contractFields["collateral-amount"].value),
+            premium: parseInt(contractFields.premium.value),
+            openPrice: parseInt(contractFields["open-price"].value),
+            closePrice: parseInt(contractFields["close-price"].value),
+            closingBlock: parseInt(contractFields["closing-block"].value),
+            asset: contractFields.asset.value,
+            longLeverage: parseInt(contractFields["long-leverage"].value),
+            shortLeverage: parseInt(contractFields["short-leverage"].value),
+            status: parseInt(contractFields.status.value),
+            longId: parseInt(contractFields["long-id"].value),
+            shortId: parseInt(contractFields["short-id"].value),
+            longPayout: parseInt(contractFields["long-payout"].value),
+            shortPayout: parseInt(contractFields["short-payout"].value)
         };
     } catch (error) {
         console.error("Error fetching contract:", error);
         throw error;
+    }
+};
+
+/**
+ * Get all NFTs owned by a user from the bitforward-nft contract using the Stacks API
+ * @param {string} userAddress - Stacks address of the user
+ * @returns {Promise<Array<{tokenId: number, contractId: number}>>} Array of NFT tokens
+ */
+export const getUserNFTs = async (userAddress) => {
+    try {
+        if (!userAddress) {
+            console.error("getUserNFTs: No user address provided");
+            return [];
+        }
+
+        // Format the asset identifier for the NFTs we want
+        const assetIdentifier = `${BITFORWARD_CONTRACT_ADDRESS}.${BITFORWARD_NFT_CONTRACT_NAME}::bitforward-contracts`;
+
+        // Query the Stacks API for NFTs owned by this address
+        const apiUrl = `${STACKS_API_BASE}/extended/v1/tokens/nft/holdings`;
+        const params = new URLSearchParams({
+            principal: userAddress,
+            asset_identifiers: assetIdentifier,
+            limit: 200, // Increase limit to get more tokens at once
+            offset: 0,
+            unanchored: false,
+            tx_metadata: false
+        });
+
+        const response = await fetch(`${apiUrl}?${params.toString()}`);
+
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Map to our required format
+        const userNFTs = await Promise.all(
+            data.results.map(async (nft) => {
+                // Parse token ID from the 'repr' field
+                const tokenId = parseInt(nft.value.repr.replace('u', ''));
+
+                // Get contract ID from token URI
+                const uriResponse = await callReadOnlyFunction({
+                    contractAddress: BITFORWARD_CONTRACT_ADDRESS,
+                    contractName: BITFORWARD_NFT_CONTRACT_NAME,
+                    functionName: "get-token-uri",
+                    functionArgs: [uintCV(tokenId)],
+                    network: DEFAULT_NETWORK,
+                    senderAddress: BITFORWARD_CONTRACT_ADDRESS
+                });
+
+                // Use cvToJSON to parse the response
+                const uriData = cvToJSON(uriResponse);
+
+                // Based on the provided structure, extract the contract ID
+                // The path to the value is value.value.value
+                const contractId = parseInt(uriData.value.value.value);
+
+                return {
+                    tokenId,
+                    contractId
+                };
+            })
+        );
+
+        return userNFTs;
+    } catch (error) {
+        console.error("Error fetching user NFTs:", error);
+        return [];
     }
 };
 
@@ -217,7 +292,7 @@ export const takePosition = async (stacksNetwork, options) => {
             ],
             network: stacksNetwork || DEFAULT_NETWORK,
             postConditions: [postCondition],
-            postConditionMode: PostConditionMode.ALLOW,
+            postConditionMode: PostConditionMode.Allow,
             onFinish,
             onCancel
         };
@@ -257,7 +332,7 @@ export const closeContract = async (stacksNetwork, options) => {
             ],
             network: stacksNetwork || DEFAULT_NETWORK,
             postConditions: [], // No post-conditions needed for closing
-            postConditionMode: PostConditionMode.ALLOW,
+            postConditionMode: PostConditionMode.Allow,
             onFinish,
             onCancel
         };
