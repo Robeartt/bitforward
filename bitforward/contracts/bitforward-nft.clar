@@ -1,10 +1,8 @@
-;; BitForward NFT Implementation - Simplified version with test compatibility
-;; This version implements the same functionality but with direct contract checking
-;; while keeping the set-approved-contract function for test compatibility
+;; BitForward NFT Implementation
 
 ;; =========== CONSTANTS ===========
 (define-constant contract-owner tx-sender)
-(define-constant bitforward-contract 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.bitforward)
+;; TODO: Use correct nft trait
 
 ;; Error codes
 (define-constant err-owner-only (err u300))
@@ -62,7 +60,7 @@
 
 ;; =========== POSITION MANAGEMENT FUNCTIONS ===========
 
-;; Mint a new NFT position (can be called by the bitforward contract, approved contracts, or the owner)
+;; Mint a new NFT position (can be called by the bitforward contract or the owner(For testing))
 (define-public (mint-position (recipient principal) (contract-id uint))
     (begin
         ;; Ensure caller is either the bitforward contract or the contract owner

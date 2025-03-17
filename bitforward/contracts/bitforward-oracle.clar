@@ -3,7 +3,6 @@
 ;; Only the contract owner can update prices
 
 ;; constants
-;;
 (define-constant owner tx-sender)
 (define-constant err-owner-only (err u200))
 (define-constant err-asset-not-supported (err u201))

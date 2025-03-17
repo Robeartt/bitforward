@@ -1,7 +1,9 @@
+;; BitForward NFT Implementation
+
 ;; =========== CONSTANTS ===========
 (define-constant contract-owner tx-sender)
 (define-constant scalar u100000000)  ;; 1.0 with 8 decimals (for sBTC compatibility)
-(define-constant premium-fee-percent u1000000)  ;; 1% fee on premium (100 * scalar / 10000)
+(define-constant premium-fee-percent u1000000)  ;; 1% fee on premium
 
 ;; Contract status constants
 (define-constant status-open u1)
@@ -32,14 +34,14 @@
 
 ;; =========== DATA VARIABLES ===========
 (define-data-var next-contract-id uint u1)
-(define-data-var is-stopped bool false)  ;; Variable to track if contract is stopped
+(define-data-var is-stopped bool false) 
 
 ;; =========== DATA MAPS ===========
 ;; Contracts map with long and short position IDs and payout information
 (define-map contracts uint 
     {
         collateral-amount: uint,
-        premium: int,           ;; Changed from uint to int to support negative values
+        premium: int,
         open-price: uint,
         close-price: uint,
         closing-block: uint,
@@ -54,11 +56,7 @@
     }
 )
 
-;; Map to track approved contracts for testing
-(define-map approved-contracts principal bool)
-
 ;; =========== GETTER FUNCTIONS ===========
-
 ;; Check if contract is stopped
 (define-read-only (get-is-stopped)
     (var-get is-stopped)
@@ -69,13 +67,7 @@
     (map-get? contracts contract-id)
 )
 
-;; Check if a contract is approved
-(define-read-only (is-approved-contract (contract-principal principal))
-    (default-to false (map-get? approved-contracts contract-principal))
-)
-
 ;; =========== ADMIN FUNCTIONS ===========
-
 ;; Stop contract to prevent new positions from being created
 (define-public (stop-contract)
     (begin
@@ -85,7 +77,7 @@
     )
 )
 
-;; Generate new contract ID (simple increment)
+;; Generate new contract ID
 (define-private (get-next-contract-id)
     (let ((current-id (var-get next-contract-id)))
         (var-set next-contract-id (+ current-id u1))
@@ -94,7 +86,6 @@
 )
 
 ;; =========== FIXED-POINT MATH FUNCTIONS ===========
-;; Original functions for uint types
 (define-private (div-fixed (a uint) (b uint))
     (if (is-eq b u0)
         err-divide-by-zero
@@ -106,7 +97,6 @@
     (ok (/ (* a b) scalar))
 )
 
-;; New functions for int types
 (define-private (div-fixed-int (a int) (b uint))
     (if (is-eq b u0)
         err-divide-by-zero
@@ -127,7 +117,6 @@
 )
 
 ;; =========== SBTC TRANSFER FUNCTIONS ===========
-
 ;; Private function to handle sBTC transfers
 (define-private (transfer-sbtc (amount uint) (sender principal) (recipient principal))
     (let ((transfer-result (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token transfer amount sender recipient none)))
@@ -137,7 +126,6 @@
 )
 
 ;; =========== CONTRACT FUNCTIONS ===========
-
 ;; Create a new contract (either long or short position)
 (define-public (create-position 
     (amount uint) 
@@ -149,14 +137,10 @@
     (short-leverage uint))
     
     (begin
-        ;; Check if contract is stopped
+        ;; Check input variables
         (asserts! (not (var-get is-stopped)) err-contract-stopped)
-        
-        ;; Check if closing block is in the future
         (asserts! (> closing-block burn-block-height) err-close-block-in-past)
         (asserts! (> amount u0) err-no-value)
-        
-        ;; Validate leverage values - must be at least 1.0 (represented as scalar)
         (asserts! (>= long-leverage scalar) err-invalid-leverage)
         (asserts! (>= short-leverage scalar) err-invalid-leverage)
         
@@ -181,7 +165,7 @@
                         (asserts! (is-ok position-result) position-result)
                         (let ((position-id (unwrap-panic position-result)))
                             
-                            ;; Create the contract with position IDs and initialized payout fields
+                            ;; Create the contract
                             (map-set contracts contract-id
                                 {
                                     collateral-amount: amount,
@@ -264,7 +248,7 @@
     )
         ;; Try to calculate price movement percentage
         (match (div-fixed-int price-diff open-price)
-            price-movement ;; Success case variable
+            price-movement
             (let (
                 ;; For long positions, check if price has dropped below liquidation threshold
                 ;; For short positions, check if price has risen above liquidation threshold
@@ -274,7 +258,7 @@
             )
                 liquidated
             )
-            error-code ;; Error case variable
+            error-code
             false
         )
     )
@@ -321,7 +305,6 @@
                         ((long-owner-option (unwrap-panic long-owner-result))
                          (short-owner-option (unwrap-panic short-owner-result)))
                         
-                        ;; Check that we got Some values, not None
                         (asserts! (is-some long-owner-option) err-token-not-found)
                         (asserts! (is-some short-owner-option) err-token-not-found)
                         
@@ -346,7 +329,7 @@
                                  (premium-to-long (if (>= premium 0) (to-uint (abs-int premium)) u0))
                                  (premium-to-short (if (< premium 0) (to-uint (abs-int premium)) u0))
                                  
-                                 ;; Calculate fee on the premium (always positive)
+                                 ;; Calculate fee on the premium
                                  (premium-abs-uint (to-uint (abs-int premium)))
                                  (premium-fee-result (mul-fixed premium-abs-uint premium-fee-percent))
                                  (premium-fee (unwrap! premium-fee-result err-divide-by-zero))
