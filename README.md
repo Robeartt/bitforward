@@ -5,13 +5,13 @@
 <h2>Features</h2>
 
 <ul>
-  <li>Create and manage forward positions with STX tokens</li>
+  <li>Create and manage forward positions with sBTC tokens</li>
   <li>Real-time position monitoring and automated settlement</li>
-  <li>Support for both long and hedge positions</li>
+  <li>Support for both long and short leveraged positions</li>
   <li>Position tracking across multiple blocks</li>
   <li>Persistent storage for position data</li>
   <li>Modern, responsive UI built with React and Tailwind CSS</li>
-  <li>Integration with Stacks wallet for secure transactions</li>
+  <li>Integration with Stacks Leather wallet for secure transactions</li>
 </ul>
 
 <h2>Prerequisites</h2>
@@ -19,7 +19,7 @@
 <ul>
   <li>Node.js (v20 or higher)</li>
   <li>npm or yarn</li>
-  <li>A Stacks wallet (Hiro Wallet recommended)</li>
+  <li>A Stacks wallet (Leather Wallet recommended)</li>
   <li>Access to Stacks testnet/devnet</li>
 </ul>
 
@@ -55,39 +55,19 @@ PORT=3000</code></pre>
 
 <h2>Key Components</h2>
 
-<h3>Backend Services</h3>
-
-<ul>
-  <li><strong>contract.js</strong>: Handles interactions with the Stacks smart contract</li>
-  <li><strong>monitor.js</strong>: Monitors positions and handles automated settlements</li>
-  <li><strong>storage.js</strong>: Manages persistent storage of position data</li>
-  <li><strong>routes.js</strong>: Express routes for the API endpoints</li>
-</ul>
-
-<h3>Frontend Components</h3>
-
-<ul>
-  <li><strong>Overview.jsx</strong>: Main dashboard showing position summary</li>
-  <li><strong>Positions.jsx</strong>: Detailed view of all positions</li>
-  <li><strong>PriceSetter.jsx</strong>: Admin interface for updating prices</li>
-  <li><strong>WalletConnect.jsx</strong>: Wallet connection management</li>
-</ul>
-
 <h2>API Endpoints</h2>
 
 <h3>Positions</h3>
 
 <ul>
-  <li><code>POST /api/position/new</code> - Create a new position</li>
+  <li><code>POST /api/position/add</code> - add a position</li>
   <li><code>GET /api/positions</code> - Get all active positions</li>
-  <li><code>GET /api/positions/history</code> - Get position history</li>
+  <li><code>GET /api/positions/delete</code> - delete a position</li>
 </ul>
 
 <h3>Price Management</h3>
 
-<ul>
-  <li><code>POST /api/price</code> - Update the current price (admin only)</li>
-</ul>
+<p> There are helper script in the <code>bitforward-scripts</code> directory to update the price
 
 <h2>Configuration</h2>
 
@@ -124,27 +104,7 @@ PORT=3000</code></pre>
 
 <h2>Testing</h2>
 
-<pre><code>npm test</code></pre>
-
-<h2>Security Considerations</h2>
-
-<ul>
-  <li>Ensure proper private key management</li>
-  <li>Use environment variables for sensitive data</li>
-  <li>Implement proper access controls for admin functions</li>
-  <li>Validate all input data</li>
-  <li>Monitor for suspicious activities</li>
-</ul>
-
-<h2>Contributing</h2>
-
-<ol>
-  <li>Fork the repository</li>
-  <li>Create your feature branch (<code>git checkout -b feature/AmazingFeature</code>)</li>
-  <li>Commit your changes (<code>git commit -m 'Add some AmazingFeature'</code>)</li>
-  <li>Push to the branch (<code>git push origin feature/AmazingFeature</code>)</li>
-  <li>Open a Pull Request</li>
-</ol>
+<pre><code>npm run test</code></pre>
 
 <h2>License</h2>
 
